@@ -32,20 +32,28 @@ const userSchema = new mongoose.Schema(
         return this.role === "college_admin";
       },
     },
+
+    // ✅ Added phone field
+    phone: {
+      type: String,
+      default: "",
+    },
+
+    profileImage: {
+      type: String,
+      default: "",
+    },
+
     // 🔐 Approval system
     status: {
       type: String,
       enum: ["pending", "approved"],
       default: function () {
-        // Students auto approved
         if (this.role === "student") return "approved";
-
-        // College admin must be approved
         if (this.role === "college_admin") return "pending";
-
         return "approved";
-      }
-    }
+      },
+    },
   },
   { timestamps: true }
 );
@@ -63,6 +71,5 @@ userSchema.methods.comparePassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-// Export using ES module syntax
 const User = mongoose.model("User", userSchema);
 export default User;
