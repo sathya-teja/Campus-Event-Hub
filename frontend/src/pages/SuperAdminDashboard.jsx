@@ -114,6 +114,15 @@ function ManageAdmins() {
     }
   };
 
+  const rejectAdmin = async (id) => {
+    try {
+      await API.delete(`/admin/reject/${id}`);
+      fetchPendingAdmins();
+    } catch (err) {
+      alert(err.response?.data?.message || "Rejection failed");
+    }
+  };
+
   useEffect(() => {
     fetchPendingAdmins();
   }, []);
@@ -129,17 +138,32 @@ function ManageAdmins() {
       )}
 
       {pendingAdmins.map((admin) => (
-        <div key={admin._id} className="p-4 border border-gray-200 rounded-lg mb-3 flex justify-between items-center gap-3">
+        <div
+          key={admin._id}
+          className="p-4 border border-gray-200 rounded-lg mb-3 flex justify-between items-center gap-3"
+        >
           <div className="min-w-0">
             <p className="font-semibold">{admin.name}</p>
-            <p className="text-sm text-gray-600 truncate">{admin.email} • {admin.college}</p>
+            <p className="text-sm text-gray-600 truncate">
+              {admin.email} • {admin.college}
+            </p>
           </div>
-          <button
-            onClick={() => approveAdmin(admin._id)}
-            className="bg-green-600 text-white px-4 py-1.5 rounded-md hover:bg-green-700 transition text-sm flex-shrink-0"
-          >
-            Approve
-          </button>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => approveAdmin(admin._id)}
+              className="bg-green-600 text-white px-4 py-1.5 rounded-md hover:bg-green-700 transition text-sm"
+            >
+              Approve
+            </button>
+
+            <button
+              onClick={() => rejectAdmin(admin._id)}
+              className="bg-red-600 text-white px-4 py-1.5 rounded-md hover:bg-red-700 transition text-sm"
+            >
+              Reject
+            </button>
+          </div>
         </div>
       ))}
     </div>
@@ -151,7 +175,9 @@ function AllUsers() {
   return (
     <div className="bg-white p-6 rounded-xl shadow-md shadow-black/5">
       <h3 className="mb-4 text-lg font-semibold">All Platform Users</h3>
-      <p className="text-gray-600 text-sm">View and manage all registered students and admins.</p>
+      <p className="text-gray-600 text-sm">
+        View and manage all registered students and admins.
+      </p>
     </div>
   );
 }
@@ -161,7 +187,9 @@ function PlatformSettings() {
   return (
     <div className="bg-white p-6 rounded-xl shadow-md shadow-black/5">
       <h3 className="mb-4 text-lg font-semibold">Platform Settings</h3>
-      <p className="text-gray-600 text-sm">Configure platform-level options, maintenance mode, and global settings.</p>
+      <p className="text-gray-600 text-sm">
+        Configure platform-level options, maintenance mode, and global settings.
+      </p>
     </div>
   );
 }
@@ -171,7 +199,9 @@ function SystemLogs() {
   return (
     <div className="bg-white p-6 rounded-xl shadow-md shadow-black/5">
       <h3 className="mb-4 text-lg font-semibold">System Logs</h3>
-      <p className="text-gray-600 text-sm">Monitor complete system activity and platform logs.</p>
+      <p className="text-gray-600 text-sm">
+        Monitor complete system activity and platform logs.
+      </p>
     </div>
   );
 }

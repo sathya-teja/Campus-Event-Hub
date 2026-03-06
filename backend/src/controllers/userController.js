@@ -94,3 +94,23 @@ export const deleteAccount = async (req, res) => {
     res.status(500).json({ message: "Delete failed" });
   }
 };
+export const rejectAdmin = async (req, res) => {
+  try {
+    const adminId = req.params.id;
+
+    const admin = await User.findById(adminId);
+
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    admin.status = "rejected";
+
+    await admin.save();
+
+    res.json({ message: "Admin rejected successfully" });
+
+  } catch (error) {
+    res.status(500).json({ message: "Error rejecting admin" });
+  }
+};
