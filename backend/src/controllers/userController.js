@@ -94,3 +94,58 @@ export const deleteAccount = async (req, res) => {
     res.status(500).json({ message: "Delete failed" });
   }
 };
+
+export const rejectAdmin = async (req, res) => {
+  try {
+    const adminId = req.params.id;
+
+    const admin = await User.findById(adminId);
+
+    if (!admin) {
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    admin.status = "rejected";
+
+    await admin.save();
+
+    res.status(200).json({ message: "Admin rejected successfully" });
+
+  } catch (error) {
+    res.status(500).json({ message: "Error rejecting admin" });
+  }
+};
+/*
+========================================
+👥 GET ALL USERS (Super Admin)
+========================================
+*/
+export const getAllUsers = async (req, res) => {
+  try {
+    const { role, search } = req.query;
+
+    const filter = {};
+
+    // Filter by role if provided
+    if (role && ["student", "college_admin", "super_admin"].includes(role)) {
+      filter.role = role;
+    }
+
+    // Search by name or email
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const users = await User.find(filter)
+      .select("name email role college status createdAt")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json(users);
+
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch users" });
+  }
+};
