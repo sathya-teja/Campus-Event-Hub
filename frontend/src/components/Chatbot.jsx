@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import { sendChatMessage } from "../services/api";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   MessageCircle,
@@ -21,7 +21,6 @@ const Chatbot = () => {
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-  const token = localStorage.getItem("token");
 
   // Auto scroll
   useEffect(() => {
@@ -55,15 +54,7 @@ const Chatbot = () => {
     setMessage("");
 
     try {
-      const config = token
-        ? { headers: { Authorization: `Bearer ${token}` } }
-        : {};
-
-      const res = await axios.post(
-        "http://localhost:5000/api/chat",
-        { message: userMessage.text },
-        config
-      );
+      const res = await sendChatMessage(userMessage.text);
 
       setMessages((prev) => [
         ...prev,

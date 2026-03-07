@@ -20,9 +20,8 @@ import {
   Search,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import axios from "axios";
+import { getEvents, getImageUrl } from "../services/api";
 
-const BASE_URL = "http://localhost:5000";
 
 /* ── Category styling ── */
 const CAT_STYLES = {
@@ -80,7 +79,7 @@ export default function Home() {
     const fetchEvents = async () => {
       try {
         setEventsLoading(true);
-        const { data } = await axios.get(`${BASE_URL}/api/events`);
+        const { data } = await getEvents();
         setEvents(data);
         const upcoming = data.filter((e) => new Date(e.startDate) > new Date()).length;
         const colleges = [...new Set(data.map((e) => e.createdBy?.college).filter(Boolean))].length;
@@ -743,7 +742,7 @@ function HeroEventCard({ event, index }) {
   const status = getStatus(event.startDate, event.endDate);
   const timeStr = formatTime(event.startDate);
   const imageUrl = event.image
-    ? `${BASE_URL}/${event.image}`
+    ? getImageUrl(event.image)
     : `https://placehold.co/600x300/1e3a8a/93c5fd?text=${encodeURIComponent(event.title)}`;
 
   return (
@@ -844,7 +843,7 @@ function LiveEventCard({ event, index, isStudent }) {
     new Date(event.startDate).toDateString() === new Date(event.endDate).toDateString();
 
   const imageUrl = event.image
-    ? `${BASE_URL}/${event.image}`
+    ? getImageUrl(event.image)
     : `https://placehold.co/800x500/e8edf7/2563eb?text=${encodeURIComponent(event.title)}`;
 
   const STATUS_STYLES = {
