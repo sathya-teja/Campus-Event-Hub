@@ -11,9 +11,8 @@ import {
   FiX,
 } from "react-icons/fi";
 import { useAuth } from "../context/AuthContext";
+import { BASE_URL } from "../services/api";
 import toast from "react-hot-toast";
-
-const BASE_URL = "http://localhost:5000";
 
 export default function Navbar({ toggleSidebar, setSidebarOpen }) {
   const [open, setOpen] = useState(false);

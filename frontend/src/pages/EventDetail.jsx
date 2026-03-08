@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import axios from "axios";
+import { getEventById, getImageUrl } from "../services/api";
 import { motion } from "framer-motion";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -19,7 +19,6 @@ import {
   FiExternalLink,
 } from "react-icons/fi";
 
-const BASE_URL = "http://localhost:5000";
 
 const CATEGORY_STYLES = {
   Tech:      { badge: "bg-blue-100 text-blue-700 border-blue-200",      bar: "bg-blue-600",   icon: "💻" },
@@ -95,7 +94,7 @@ export default function EventDetail() {
     try {
       setLoading(true);
       setError(null);
-      const { data } = await axios.get(`${BASE_URL}/api/events/${id}`);
+      const { data } = await getEventById(id);
       setEvent(data);
     } catch (err) {
       setError(
@@ -199,7 +198,7 @@ export default function EventDetail() {
   const countdown   = daysUntil(event.startDate);
 
   const imageUrl = event.image
-    ? `${BASE_URL}/${event.image}`
+    ? getImageUrl(event.image)
     : `https://placehold.co/1200x600/e8edf7/2563eb?text=${encodeURIComponent(event.title)}`;
 
   const startFmt      = formatDate(event.startDate);

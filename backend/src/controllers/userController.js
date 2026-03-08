@@ -94,6 +94,10 @@ export const deleteAccount = async (req, res) => {
     res.status(500).json({ message: "Delete failed" });
   }
 };
+<<<<<<< HEAD
+=======
+
+>>>>>>> 9a1cb6932463935cf9daf4e8aa5078cc540fb41d
 export const rejectAdmin = async (req, res) => {
   try {
     const adminId = req.params.id;
@@ -108,9 +112,50 @@ export const rejectAdmin = async (req, res) => {
 
     await admin.save();
 
+<<<<<<< HEAD
     res.json({ message: "Admin rejected successfully" });
+=======
+    res.status(200).json({ message: "Admin rejected successfully" });
+>>>>>>> 9a1cb6932463935cf9daf4e8aa5078cc540fb41d
 
   } catch (error) {
     res.status(500).json({ message: "Error rejecting admin" });
   }
+<<<<<<< HEAD
+=======
+};
+/*
+========================================
+👥 GET ALL USERS (Super Admin)
+========================================
+*/
+export const getAllUsers = async (req, res) => {
+  try {
+    const { role, search } = req.query;
+
+    const filter = {};
+
+    // Filter by role if provided
+    if (role && ["student", "college_admin", "super_admin"].includes(role)) {
+      filter.role = role;
+    }
+
+    // Search by name or email
+    if (search) {
+      filter.$or = [
+        { name: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const users = await User.find(filter)
+      .select("name email role college status createdAt")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json(users);
+
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch users" });
+  }
+>>>>>>> 9a1cb6932463935cf9daf4e8aa5078cc540fb41d
 };

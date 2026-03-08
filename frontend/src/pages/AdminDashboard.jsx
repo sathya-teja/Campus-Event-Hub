@@ -1,7 +1,7 @@
 // AdminDashboard.jsx
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback, useRef } from "react";
-import axios from "axios";
+import { getMyEvents, createEvent, updateEvent, deleteEvent, getImageUrl } from "../services/api";
 import Navbar from "../components/Navbar";
 import StatsCard from "../components/StatsCard";
 import Sidebar from "../components/Sidebar";
@@ -32,7 +32,6 @@ import {
   FiInfo,
 } from "react-icons/fi";
 
-const BASE_URL = "http://localhost:5000";
 const EVENTS_PER_PAGE = 6;
 const CATEGORIES = ["Tech", "Cultural", "Sports", "Workshop"];
 
@@ -90,7 +89,7 @@ function toCardProps(event) {
     location: event.location,
     college: event.createdBy?.college || event.createdBy?.name || "",
     image: event.image
-      ? `${BASE_URL}/${event.image}`
+      ? getImageUrl(event.image)
       : "https://placehold.co/600x400?text=No+Image",
   };
 }
@@ -192,7 +191,7 @@ function EventManagement() {
     try {
       setLoading(true);
       setError(null);
-      const { data } = await axios.get(`${BASE_URL}/api/events`);
+      const { data } = await getMyEvents();
       setEvents(data);
     } catch {
       setError("Failed to load events. Please try again.");
@@ -205,13 +204,10 @@ function EventManagement() {
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
-    const token = localStorage.getItem("token");
     try {
       setDeleteLoading(true);
       setDeleteError("");
-      await axios.delete(`${BASE_URL}/api/events/${deleteTarget._id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await deleteEvent(deleteTarget._id);
       setEvents((prev) => prev.filter((e) => e._id !== deleteTarget._id));
       setDeleteTarget(null);
     } catch (err) {
@@ -494,12 +490,7 @@ function CreateEventModal({ onClose, onCreated }) {
     try {
       setLoading(true);
       setApiError("");
-      const { data } = await axios.post(`${BASE_URL}/api/events`, payload, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      const { data } = await createEvent(payload);
       setSuccess(true);
       setTimeout(() => onCreated(data.event), 1200);
     } catch (err) {
@@ -797,7 +788,7 @@ function EditEventModal({ event, onClose, onUpdated }) {
 
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(
-    event.image ? `${BASE_URL}/${event.image}` : null
+    event.image ? getImageUrl(event.image) : null
   );
   const [errors, setErrors] = useState({});
   const [apiError, setApiError] = useState("");
@@ -875,16 +866,7 @@ function EditEventModal({ event, onClose, onUpdated }) {
     try {
       setLoading(true);
       setApiError("");
-      const { data } = await axios.put(
-        `${BASE_URL}/api/events/${event._id}`,
-        payload,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "multipart/form-data",
-          },
-        }
-      );
+      const { data } = await updateEvent(event._id, payload);
       setSuccess(true);
       setTimeout(() => onUpdated(data), 1200);
     } catch (err) {

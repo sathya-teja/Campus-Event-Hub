@@ -210,3 +210,15 @@ export const deleteEvent = async (req, res) => {
     });
   }
 };
+
+// EventController.js — add this new function
+export const getMyEvents = async (req, res) => {
+  try {
+    const events = await Event.find({ createdBy: req.user._id })
+      .sort({ startDate: 1 })
+      .populate("createdBy", "name college");
+    res.status(200).json(events);
+  } catch (error) {
+    res.status(500).json({ message: "Failed to fetch events" });
+  }
+};

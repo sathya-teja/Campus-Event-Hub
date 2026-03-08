@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import axios from "axios";
+import { getEvents, getImageUrl } from "../services/api";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
@@ -22,7 +22,6 @@ import {
   FiTag,
 } from "react-icons/fi";
 
-const BASE_URL = "http://localhost:5000";
 const EVENTS_PER_PAGE = 6;
 const CATEGORIES = ["All", "Tech", "Cultural", "Sports", "Workshop"];
 
@@ -97,7 +96,7 @@ function toCardProps(event) {
     isSameDay,
     college: event.createdBy?.college || event.createdBy?.name || "Campus",
     imageUrl: event.image
-      ? `${BASE_URL}/${event.image}`
+      ? getImageUrl(event.image)
       : `https://placehold.co/800x500/e8edf7/2563eb?text=${encodeURIComponent(event.title)}`,
     status: getStatus(event.startDate, event.endDate),
   };
@@ -131,7 +130,7 @@ export default function Events() {
     try {
       setLoading(true);
       setError(null);
-      const { data } = await axios.get(`${BASE_URL}/api/events`);
+      const { data } = await getEvents();
       setAllEvents(data);
     } catch {
       setError("Unable to load events. Please check your connection.");

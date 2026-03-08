@@ -21,7 +21,7 @@ import {
   FiCamera,
 } from "react-icons/fi";
 import toast from "react-hot-toast";
-import { updateProfile, deleteAccount } from "../services/api";
+import { updateProfile, deleteAccount, BASE_URL } from "../services/api";
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 20 },
@@ -29,7 +29,6 @@ const fadeUp = (delay = 0) => ({
   transition: { duration: 0.45, delay, ease: [0.22, 1, 0.36, 1] },
 });
 
-const BASE_URL = "http://localhost:5000";
 
 export default function Profile() {
   const { user, logout, setUser } = useAuth();

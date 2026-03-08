@@ -5,6 +5,7 @@ import {
   getEventById,
   updateEvent,
   deleteEvent,
+  getMyEvents
 } from "../controllers/EventController.js";
 
 import { verifyToken, authorizeRoles } from "../middleware/authmiddleware.js";
@@ -27,6 +28,8 @@ router.post(
    GET EVENTS (Public)
 ================================= */
 router.get("/", getAllEvents);
+// EventRoutes.js — add this BEFORE /:id route
+router.get("/my-events", verifyToken, authorizeRoles("college_admin"), getMyEvents);
 router.get("/:id", getEventById);
 
 /* ===============================
@@ -49,5 +52,6 @@ router.delete(
   authorizeRoles("college_admin"),
   deleteEvent
 );
+
 
 export default router;
