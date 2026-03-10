@@ -94,10 +94,7 @@ export const deleteAccount = async (req, res) => {
     res.status(500).json({ message: "Delete failed" });
   }
 };
-<<<<<<< HEAD
-=======
 
->>>>>>> 9a1cb6932463935cf9daf4e8aa5078cc540fb41d
 export const rejectAdmin = async (req, res) => {
   try {
     const adminId = req.params.id;
@@ -112,17 +109,11 @@ export const rejectAdmin = async (req, res) => {
 
     await admin.save();
 
-<<<<<<< HEAD
-    res.json({ message: "Admin rejected successfully" });
-=======
     res.status(200).json({ message: "Admin rejected successfully" });
->>>>>>> 9a1cb6932463935cf9daf4e8aa5078cc540fb41d
 
   } catch (error) {
     res.status(500).json({ message: "Error rejecting admin" });
   }
-<<<<<<< HEAD
-=======
 };
 /*
 ========================================
@@ -157,5 +148,4 @@ export const getAllUsers = async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch users" });
   }
->>>>>>> 9a1cb6932463935cf9daf4e8aa5078cc540fb41d
 };
