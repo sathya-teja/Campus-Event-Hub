@@ -46,8 +46,8 @@ export default function Navbar({ toggleSidebar, setSidebarOpen }) {
   }[role] || "bg-gray-400";
 
   useEffect(() => {
-    setImgError(false);
-  }, [user?.profileImage]);
+  setImgError(false);
+}, [user?.id]);
 
   const avatarSrc =
     user?.profileImage && !imgError

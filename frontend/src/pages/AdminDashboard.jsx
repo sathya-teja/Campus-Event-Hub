@@ -1,7 +1,7 @@
 // AdminDashboard.jsx
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getMyEvents, createEvent, updateEvent, deleteEvent, getImageUrl, getEventRegistrations, approveRegistration, rejectRegistration, getAllUsers } from "../services/api";
+import { getMyEvents, createEvent, updateEvent, deleteEvent, getImageUrl, getEventRegistrations, getAllRegistrations, approveRegistration, rejectRegistration, getAllUsers, getMyEventStudents, exportRegistrationsCSV, exportRegistrationsExcel, exportRegistrationsPDF, exportRegistrationsJSON, exportAllRegistrationsCSV, exportAllRegistrationsExcel, exportAllRegistrationsPDF, exportAllRegistrationsJSON } from "../services/api";
 import Navbar from "../components/Navbar";
 import StatsCard from "../components/StatsCard";
 import Sidebar from "../components/Sidebar";
@@ -30,6 +30,7 @@ import {
   FiSave,
   FiTag,
   FiInfo,
+  FiDownload,
 } from "react-icons/fi";
 
 const EVENTS_PER_PAGE = 6;
@@ -143,17 +144,7 @@ export default function AdminDashboard() {
               Admin Dashboard
             </h2>
 
-            {activeTab === "overview" && (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                  <StatsCard title="Total Events" value="24" color="#16a34a" icon={<FiFileText size={22} />} />
-                  <StatsCard title="Active Users" value="320" color="#2563eb" icon={<FiUsers size={22} />} />
-                  <StatsCard title="Registrations" value="890" color="#f59e0b" icon={<FiCheckCircle size={22} />} />
-                  <StatsCard title="Pending Reviews" value="6" color="#dc2626" icon={<FiAlertTriangle size={22} />} />
-                </div>
-                <OverviewSection />
-              </>
-            )}
+            {activeTab === "overview" && <OverviewSection />}
 
             {activeTab === "users" && <UserManagement />}
             {activeTab === "events" && <EventManagement />}
@@ -1338,47 +1329,234 @@ function EmptyState({ hasFilters, onClear, onCreate }) {
    OVERVIEW
 ================================================ */
 function OverviewSection() {
+  const [stats, setStats] = useState({ events: 0, students: 0, approved: 0, pending: 0, rejected: 0, total: 0 });
+  const [recentEvents, setRecentEvents] = useState([]);
+  const [recentRegs, setRecentRegs]     = useState([]);
+  const [loading, setLoading]           = useState(true);
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      try {
+        const [eventsRes, studentsRes, regsRes] = await Promise.all([
+          getMyEvents(),
+          getMyEventStudents(),
+          getAllRegistrations(),
+        ]);
+        const regs = regsRes.data.registrations || [];
+        setStats({
+          events:   eventsRes.data.length,
+          students: studentsRes.data.length,
+          approved: regs.filter((r) => r.status === "approved").length,
+          pending:  regs.filter((r) => r.status === "pending").length,
+          rejected: regs.filter((r) => r.status === "rejected").length,
+          total:    regs.length,
+        });
+        // 4 most recent events
+        setRecentEvents(
+          [...eventsRes.data]
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, 4)
+        );
+        // 5 most recent registrations
+        setRecentRegs(
+          [...regs]
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, 5)
+        );
+      } catch { /* silent — cards stay at 0 */ }
+      finally { setLoading(false); }
+    };
+    fetchAll();
+  }, []);
+
+  const statCards = [
+    { title: "My Events",       value: stats.events,   color: "#16a34a", icon: <FiCalendar size={22} />,     bg: "bg-green-50",  ring: "ring-green-100" },
+    { title: "Students",        value: stats.students, color: "#2563eb", icon: <FiUsers size={22} />,        bg: "bg-blue-50",   ring: "ring-blue-100" },
+    { title: "Total Registrations", value: stats.total, color: "#7c3aed", icon: <FiFileText size={22} />,   bg: "bg-violet-50", ring: "ring-violet-100" },
+    { title: "Pending Reviews", value: stats.pending,  color: "#dc2626", icon: <FiAlertTriangle size={22} />, bg: "bg-red-50",  ring: "ring-red-100" },
+  ];
+
+  const approvalRate = stats.total > 0 ? Math.round((stats.approved / stats.total) * 100) : 0;
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 w-full">
-      {/* Recent Events */}
+    <div className="space-y-6">
+      {/* ── Stat Cards ────────────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {statCards.map((s) => (
+          <div key={s.title} className={`bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-center gap-4 ring-1 ${s.ring}`}>
+            <div className={`w-12 h-12 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}
+                 style={{ color: s.color }}>
+              {s.icon}
+            </div>
+            <div>
+              {loading ? (
+                <div className="h-7 w-12 bg-gray-100 rounded animate-pulse mb-1" />
+              ) : (
+                <p className="text-2xl font-bold text-gray-800">{s.value}</p>
+              )}
+              <p className="text-xs text-gray-400 font-medium">{s.title}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Registration Breakdown + Recent Registrations ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+        {/* Approval breakdown */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center text-violet-600">
+              <FiCheckSquare size={15} />
+            </div>
+            <h3 className="font-semibold text-gray-800">Registration Breakdown</h3>
+          </div>
+
+          {loading ? (
+            <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-8 bg-gray-100 rounded animate-pulse" />)}</div>
+          ) : stats.total === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">No registrations yet</p>
+          ) : (
+            <div className="space-y-3">
+              {[
+                { label: "Approved", count: stats.approved, color: "bg-green-500",  light: "bg-green-50",  text: "text-green-700" },
+                { label: "Pending",  count: stats.pending,  color: "bg-amber-400",  light: "bg-amber-50",  text: "text-amber-700" },
+                { label: "Rejected", count: stats.rejected, color: "bg-red-400",    light: "bg-red-50",    text: "text-red-700" },
+              ].map(({ label, count, color, light, text }) => {
+                const pct = stats.total > 0 ? Math.round((count / stats.total) * 100) : 0;
+                return (
+                  <div key={label}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="font-medium text-gray-600">{label}</span>
+                      <span className={`font-semibold ${text}`}>{count} <span className="text-gray-400 font-normal">({pct}%)</span></span>
+                    </div>
+                    <div className={`w-full h-2 rounded-full ${light}`}>
+                      <div className={`h-2 rounded-full ${color} transition-all duration-700`} style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="pt-2 border-t border-gray-50 flex justify-between text-xs">
+                <span className="text-gray-400">Approval Rate</span>
+                <span className="font-bold text-green-600">{approvalRate}%</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Recent registrations */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
+                <FiUsers size={15} />
+              </div>
+              <h3 className="font-semibold text-gray-800">Recent Registrations</h3>
+            </div>
+            <span className="text-xs text-gray-400">Latest 5</span>
+          </div>
+          {loading ? (
+            <div className="divide-y divide-gray-50">
+              {[1,2,3,4,5].map((i) => (
+                <div key={i} className="flex items-center gap-3 px-5 py-3.5 animate-pulse">
+                  <div className="w-8 h-8 rounded-full bg-gray-100 flex-shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 bg-gray-100 rounded w-1/3" />
+                    <div className="h-2.5 bg-gray-100 rounded w-1/2" />
+                  </div>
+                  <div className="h-5 w-16 bg-gray-100 rounded-full" />
+                </div>
+              ))}
+            </div>
+          ) : recentRegs.length === 0 ? (
+            <div className="p-10 text-center">
+              <FiCheckCircle size={28} className="text-gray-200 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">No registrations yet</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {recentRegs.map((reg) => {
+                const sc = {
+                  approved: { bg: "bg-green-50", text: "text-green-700", dot: "bg-green-500", label: "Approved" },
+                  pending:  { bg: "bg-amber-50",  text: "text-amber-700",  dot: "bg-amber-400",  label: "Pending"  },
+                  rejected: { bg: "bg-red-50",    text: "text-red-700",    dot: "bg-red-400",    label: "Rejected" },
+                }[reg.status] || { bg: "bg-gray-50", text: "text-gray-600", dot: "bg-gray-400", label: reg.status };
+                return (
+                  <div key={reg._id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50/60 transition-colors">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">
+                      {reg.userId?.name?.charAt(0).toUpperCase() || "?"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{reg.userId?.name || "Unknown"}</p>
+                      <p className="text-xs text-gray-400 truncate">{reg.eventId?.title || reg.eventTitle || "—"}</p>
+                    </div>
+                    <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} border-transparent flex-shrink-0`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                      {sc.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Recent Events ─────────────────────────────────── */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
+            <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-600">
               <FiCalendar size={15} />
             </div>
             <h3 className="font-semibold text-gray-800">Recent Events</h3>
           </div>
-          <span className="text-xs text-gray-400 font-medium">This month</span>
+          <span className="text-xs text-gray-400">Latest 4</span>
         </div>
-        <div className="divide-y divide-gray-50">
-          <EventItem title="Inter-College Hackathon 2024" participants={127} category="Tech" />
-          <EventItem title="Cultural Fest - Harmony 2024" participants={342} category="Cultural" />
-          <EventItem title="Basketball Championship" participants={160} category="Sports" />
-          <EventItem title="Web Development Workshop" participants={65} category="Workshop" />
-        </div>
-      </div>
-
-      {/* System Health */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-600">
-              <FiCheckCircle size={15} />
-            </div>
-            <h3 className="font-semibold text-gray-800">System Health</h3>
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-gray-100">
+            {[1,2,3,4].map((i) => (
+              <div key={i} className="bg-white p-5 animate-pulse space-y-2">
+                <div className="h-4 bg-gray-100 rounded w-2/3" />
+                <div className="h-3 bg-gray-100 rounded w-1/2" />
+                <div className="h-3 bg-gray-100 rounded w-1/3" />
+              </div>
+            ))}
           </div>
-          <span className="flex items-center gap-1.5 text-xs text-green-600 font-semibold bg-green-50 px-2.5 py-1 rounded-full border border-green-100">
-            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            All systems operational
-          </span>
-        </div>
-        <div className="px-6 py-2 divide-y divide-gray-50">
-          <HealthRow label="Server Status" value="Healthy" good />
-          <HealthRow label="Database" value="Connected" good />
-          <HealthRow label="API Response" value="152ms" good />
-          <HealthRow label="Uptime" value="99.9%" good />
-        </div>
+        ) : recentEvents.length === 0 ? (
+          <div className="p-10 text-center">
+            <FiCalendar size={28} className="text-gray-200 mx-auto mb-2" />
+            <p className="text-sm text-gray-400">No events created yet</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-gray-100">
+            {recentEvents.map((ev) => {
+              const status = getEventStatus(ev.startDate, ev.endDate);
+              const statusCfg = {
+                Upcoming: { bg: "bg-blue-50",   text: "text-blue-600",  dot: "bg-blue-400"  },
+                Ongoing:  { bg: "bg-green-50",  text: "text-green-600", dot: "bg-green-500 animate-pulse" },
+                Past:     { bg: "bg-gray-50",   text: "text-gray-500",  dot: "bg-gray-300"  },
+              }[status];
+              const tagColor = CATEGORY_TAG_COLORS[ev.category] || "bg-gray-100 text-gray-500 border-gray-200";
+              return (
+                <div key={ev._id} className="bg-white p-5 hover:bg-gray-50/60 transition-colors">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <p className="text-sm font-semibold text-gray-800 truncate flex-1">{ev.title}</p>
+                    <span className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${statusCfg.bg} ${statusCfg.text}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
+                      {status}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${tagColor}`}>{ev.category}</span>
+                    <span className="text-xs text-gray-400">{formatDate(ev.startDate)}</span>
+                    <span className="text-xs text-gray-400">· {ev.currentParticipants ?? 0}/{ev.maxParticipants} seats</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1391,35 +1569,8 @@ const CATEGORY_TAG_COLORS = {
   Workshop: "bg-amber-50 text-amber-600 border-amber-100",
 };
 
-function EventItem({ title, participants, category }) {
-  const tagColor = CATEGORY_TAG_COLORS[category] || "bg-gray-100 text-gray-500 border-gray-200";
-  return (
-    <div className="flex items-center gap-3 px-6 py-3.5 hover:bg-gray-50/60 transition-colors">
-      <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 text-gray-400">
-        <FiCalendar size={13} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-800 truncate">{title}</p>
-        <p className="text-xs text-gray-400">{participants} participants</p>
-      </div>
-      <span className={`text-xs px-2.5 py-1 rounded-full border font-medium flex-shrink-0 ${tagColor}`}>
-        {category}
-      </span>
-    </div>
-  );
-}
 
-function HealthRow({ label, value, good }) {
-  return (
-    <div className="flex items-center justify-between py-3.5">
-      <span className="text-sm text-gray-500">{label}</span>
-      <div className="flex items-center gap-2">
-        <span className={`w-2 h-2 rounded-full ${good ? "bg-green-500" : "bg-red-500"}`} />
-        <span className={`text-sm font-semibold ${good ? "text-green-600" : "text-red-600"}`}>{value}</span>
-      </div>
-    </div>
-  );
-}
+
 
 /* ================================================
    USER MANAGEMENT
@@ -1434,7 +1585,7 @@ function UserManagement() {
     try {
       setLoading(true);
       setError(null);
-      const { data } = await getAllUsers({ role: "student" });
+      const { data } = await getMyEventStudents();
       setUsers(data);
     } catch {
       setError("Failed to load students. Please try again.");
@@ -1584,21 +1735,23 @@ function Registrations() {
   const [statusTab, setStatusTab]         = useState("all");
   const [search, setSearch]               = useState("");
   const [events, setEvents]               = useState([]);
+  const [exportFormat, setExportFormat]   = useState("csv");
+  const [exporting, setExporting]         = useState(false);
 
   const fetchAll = useCallback(async () => {
     try {
       setLoading(true);
-      const { data: myEvents } = await getMyEvents();
-      setEvents(myEvents);
-      const allRegs = await Promise.all(
-        myEvents.map(async (ev) => {
-          try {
-            const { data } = await getEventRegistrations(ev._id);
-            return data.map((r) => ({ ...r, eventTitle: ev.title }));
-          } catch { return []; }
-        })
+      // Single request — returns { events, registrations } instead of N+1 calls
+      const { data } = await getAllRegistrations();
+      setEvents(data.events);
+      // Attach eventTitle to each registration for display/filtering
+      const eventMap = Object.fromEntries(data.events.map((e) => [e._id, e.title]));
+      setRegistrations(
+        data.registrations.map((r) => ({
+          ...r,
+          eventTitle: r.eventId?.title || eventMap[r.eventId] || "Unknown",
+        }))
       );
-      setRegistrations(allRegs.flat());
     } catch { /* silent */ }
     finally { setLoading(false); }
   }, []);
@@ -1629,6 +1782,83 @@ function Registrations() {
       alert(err.response?.data?.message || "Failed to reject");
     } finally { setActionId(null); }
   };
+
+  const handleExportRegistrations = async () => {
+  try {
+    setExporting(true);
+
+    let response;
+    let filename;
+
+    if (selectedEvent === "all") {
+      // Export all events
+      switch (exportFormat) {
+        case "csv":
+          response = await exportAllRegistrationsCSV();
+          filename = `all_registrations_${Date.now()}.csv`;
+          break;
+        case "excel":
+          response = await exportAllRegistrationsExcel();
+          filename = `all_registrations_${Date.now()}.xlsx`;
+          break;
+        case "pdf":
+          response = await exportAllRegistrationsPDF();
+          filename = `all_registrations_${Date.now()}.pdf`;
+          break;
+        case "json":
+          response = await exportAllRegistrationsJSON();
+          filename = `all_registrations_${Date.now()}.json`;
+          break;
+        default:
+          return;
+      }
+    } else {
+      // Export single event
+      const selectedEventObj = events.find((ev) => ev.title === selectedEvent);
+      if (!selectedEventObj) {
+        alert("Please select an event first");
+        setExporting(false);
+        return;
+      }
+
+      switch (exportFormat) {
+        case "csv":
+          response = await exportRegistrationsCSV(selectedEventObj._id);
+          filename = `registrations_${selectedEvent}_${Date.now()}.csv`;
+          break;
+        case "excel":
+          response = await exportRegistrationsExcel(selectedEventObj._id);
+          filename = `registrations_${selectedEvent}_${Date.now()}.xlsx`;
+          break;
+        case "pdf":
+          response = await exportRegistrationsPDF(selectedEventObj._id);
+          filename = `registrations_${selectedEvent}_${Date.now()}.pdf`;
+          break;
+        case "json":
+          response = await exportRegistrationsJSON(selectedEventObj._id);
+          filename = `registrations_${selectedEvent}_${Date.now()}.json`;
+          break;
+        default:
+          return;
+      }
+    }
+
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    link.parentNode.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error("Export failed:", error);
+    alert("Failed to export registrations");
+  } finally {
+    setExporting(false);
+  }
+};
 
   const counts = {
     all:      registrations.length,
@@ -1687,19 +1917,47 @@ function Registrations() {
           <h3 className="text-lg font-semibold text-gray-800">Registrations</h3>
           <p className="text-sm text-gray-500 mt-0.5">{filtered.length} registration{filtered.length !== 1 ? "s" : ""} found</p>
         </div>
-        {/* Event filter */}
-        {events.length > 0 && (
-          <select
-            value={selectedEvent}
-            onChange={(e) => setSelectedEvent(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-600/20 bg-white self-start sm:self-auto"
-          >
-            <option value="all">All Events</option>
-            {events.map((ev) => (
-              <option key={ev._id} value={ev.title}>{ev.title}</option>
-            ))}
-          </select>
-        )}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          {/* Event filter */}
+          {events.length > 0 && (
+            <select
+              value={selectedEvent}
+              onChange={(e) => setSelectedEvent(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-600/20 bg-white"
+            >
+              <option value="all">All Events</option>
+              {events.map((ev) => (
+                <option key={ev._id} value={ev.title}>{ev.title}</option>
+              ))}
+            </select>
+          )}
+          
+          {/* Export section */}
+          <div className="flex items-center gap-2">
+            <select
+              value={exportFormat}
+              onChange={(e) => setExportFormat(e.target.value)}
+              className="px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 outline-none focus:ring-2 focus:ring-blue-600/20"
+            >
+              <option value="csv">CSV</option>
+              <option value="excel">Excel</option>
+              <option value="pdf">PDF</option>
+              <option value="json">JSON</option>
+            </select>
+            <button
+              onClick={handleExportRegistrations}
+              disabled={exporting}
+              className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap"
+            >
+              {exporting ? (
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <FiDownload size={16} />
+              )}
+              Export
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Status Tabs */}

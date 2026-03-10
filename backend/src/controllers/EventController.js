@@ -143,6 +143,7 @@ export const updateEvent = async (req, res) => {
       endDate,
       location,
       description,
+      maxParticipants,
     } = req.body;
 
     // Trim inputs
@@ -171,6 +172,9 @@ export const updateEvent = async (req, res) => {
         ...(endDate && { endDate }),
         ...(locationClean && { location: locationClean }),
         ...(descriptionClean && { description: descriptionClean }),
+        ...(maxParticipants && !isNaN(maxParticipants) && Number(maxParticipants) >= 1 && {
+          maxParticipants: Number(maxParticipants),
+        }),
         ...(req.file && {
           image: req.file.path.replace(/\\/g, "/"),
         }),
