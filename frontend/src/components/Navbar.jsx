@@ -13,6 +13,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { BASE_URL } from "../services/api";
 import toast from "react-hot-toast";
+import NotificationBell from "./NotificationBell"; // 🔔 NEW
 
 export default function Navbar({ toggleSidebar, setSidebarOpen }) {
   const [open, setOpen] = useState(false);
@@ -171,8 +172,14 @@ export default function Navbar({ toggleSidebar, setSidebarOpen }) {
             </button>
           </>
         ) : (
-          /* ── Authenticated dropdown trigger ── */
-          <div ref={dropdownRef} className="relative">
+          /* ── Authenticated ── */
+          <div className="flex items-center gap-2">
+
+            {/* 🔔 Notification Bell */}
+            <NotificationBell user={user} />
+
+            {/* ── Avatar dropdown trigger ── */}
+            <div ref={dropdownRef} className="relative">
             <button
               onClick={() => setOpen(!open)}
               className={`flex items-center gap-2.5 pl-1.5 pr-3 py-1.5 rounded-full border transition-all duration-150
@@ -260,7 +267,8 @@ export default function Navbar({ toggleSidebar, setSidebarOpen }) {
                 </div>
               </div>
             )}
-          </div>
+          </div> {/* closes dropdownRef */}
+          </div> 
         )}
       </div>
 

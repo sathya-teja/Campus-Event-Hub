@@ -1,7 +1,7 @@
 // AdminDashboard.jsx
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getMyEvents, createEvent, updateEvent, deleteEvent, getImageUrl } from "../services/api";
+import { getMyEvents, createEvent, updateEvent, deleteEvent, getImageUrl, getEventRegistrations, approveRegistration, rejectRegistration, getAllUsers } from "../services/api";
 import Navbar from "../components/Navbar";
 import StatsCard from "../components/StatsCard";
 import Sidebar from "../components/Sidebar";
@@ -410,6 +410,7 @@ function CreateEventModal({ onClose, onCreated }) {
     endTime: "18:00",
     location: "",
     description: "",
+    maxParticipants: "",
   });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -465,6 +466,8 @@ function CreateEventModal({ onClose, onCreated }) {
       if (start >= end) e.endTime = "End must be after start date & time";
     }
     if (!formData.description.trim()) e.description = "Description is required";
+    if (!formData.maxParticipants || isNaN(formData.maxParticipants) || Number(formData.maxParticipants) < 1)
+      e.maxParticipants = "Must be at least 1";
     return e;
   };
 
@@ -655,6 +658,21 @@ function CreateEventModal({ onClose, onCreated }) {
                   </Field>
                 </ModalSection>
 
+                {/* Max Participants */}
+                <ModalSection icon={<FiUsers size={14} />} title="Capacity">
+                  <Field label="Max Participants" error={errors.maxParticipants}>
+                    <input
+                      type="number"
+                      name="maxParticipants"
+                      value={formData.maxParticipants}
+                      onChange={handleChange}
+                      min={1}
+                      placeholder="e.g. 100"
+                      className={inputCls(errors.maxParticipants)}
+                    />
+                  </Field>
+                </ModalSection>
+
                 {/* Banner Image */}
                 <ModalSection icon={<FiUploadCloud size={14} />} title="Event Banner" optional>
                   {imagePreview ? (
@@ -784,6 +802,7 @@ function EditEventModal({ event, onClose, onUpdated }) {
     endTime: toTimeInput(event.endDate),
     location: event.location || "",
     description: event.description || "",
+    maxParticipants: event.maxParticipants || "",
   });
 
   const [imageFile, setImageFile] = useState(null);
@@ -841,6 +860,8 @@ function EditEventModal({ event, onClose, onUpdated }) {
       if (start >= end) e.endTime = "End must be after start date & time";
     }
     if (!formData.description.trim()) e.description = "Description is required";
+    if (!formData.maxParticipants || isNaN(formData.maxParticipants) || Number(formData.maxParticipants) < 1)
+      e.maxParticipants = "Must be at least 1";
     return e;
   };
 
@@ -1026,6 +1047,21 @@ function EditEventModal({ event, onClose, onUpdated }) {
                       onChange={handleChange}
                       placeholder="Describe the event, agenda, speakers, prizes..."
                       className={`${inputCls(errors.description)} resize-none`}
+                    />
+                  </Field>
+                </ModalSection>
+
+                {/* Max Participants */}
+                <ModalSection icon={<FiUsers size={14} />} title="Capacity">
+                  <Field label="Max Participants" error={errors.maxParticipants}>
+                    <input
+                      type="number"
+                      name="maxParticipants"
+                      value={formData.maxParticipants}
+                      onChange={handleChange}
+                      min={1}
+                      placeholder="e.g. 100"
+                      className={inputCls(errors.maxParticipants)}
                     />
                   </Field>
                 </ModalSection>
@@ -1304,41 +1340,83 @@ function EmptyState({ hasFilters, onClear, onCreate }) {
 function OverviewSection() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 w-full">
-      <div className="bg-white p-6 rounded-xl shadow-lg shadow-black/5 w-full min-w-0">
-        <h3 className="mb-5 font-semibold">Recent Events</h3>
-        <EventItem title="Inter-College Hackathon 2024" subtitle="tech-university · 127 participants" tag="hackathon" />
-        <EventItem title="Cultural Fest - Harmony 2024" subtitle="arts-college · 342 participants" tag="cultural" />
-        <EventItem title="Basketball Championship" subtitle="sports-university · 160 participants" tag="sports" />
-        <EventItem title="Web Development Workshop" subtitle="tech-university · 65 participants" tag="workshop" />
+      {/* Recent Events */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
+              <FiCalendar size={15} />
+            </div>
+            <h3 className="font-semibold text-gray-800">Recent Events</h3>
+          </div>
+          <span className="text-xs text-gray-400 font-medium">This month</span>
+        </div>
+        <div className="divide-y divide-gray-50">
+          <EventItem title="Inter-College Hackathon 2024" participants={127} category="Tech" />
+          <EventItem title="Cultural Fest - Harmony 2024" participants={342} category="Cultural" />
+          <EventItem title="Basketball Championship" participants={160} category="Sports" />
+          <EventItem title="Web Development Workshop" participants={65} category="Workshop" />
+        </div>
       </div>
-      <div className="bg-white p-6 rounded-xl shadow-lg shadow-black/5 w-full min-w-0">
-        <h3 className="mb-5 font-semibold">System Health</h3>
-        <HealthRow label="Server Status" value="Healthy" good />
-        <HealthRow label="Database" value="Connected" good />
-        <HealthRow label="API Response" value="152ms" good />
-        <HealthRow label="Uptime" value="99.9%" good />
+
+      {/* System Health */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-600">
+              <FiCheckCircle size={15} />
+            </div>
+            <h3 className="font-semibold text-gray-800">System Health</h3>
+          </div>
+          <span className="flex items-center gap-1.5 text-xs text-green-600 font-semibold bg-green-50 px-2.5 py-1 rounded-full border border-green-100">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            All systems operational
+          </span>
+        </div>
+        <div className="px-6 py-2 divide-y divide-gray-50">
+          <HealthRow label="Server Status" value="Healthy" good />
+          <HealthRow label="Database" value="Connected" good />
+          <HealthRow label="API Response" value="152ms" good />
+          <HealthRow label="Uptime" value="99.9%" good />
+        </div>
       </div>
     </div>
   );
 }
 
-function EventItem({ title, subtitle, tag }) {
+const CATEGORY_TAG_COLORS = {
+  Tech:     "bg-blue-50 text-blue-600 border-blue-100",
+  Cultural: "bg-purple-50 text-purple-600 border-purple-100",
+  Sports:   "bg-green-50 text-green-600 border-green-100",
+  Workshop: "bg-amber-50 text-amber-600 border-amber-100",
+};
+
+function EventItem({ title, participants, category }) {
+  const tagColor = CATEGORY_TAG_COLORS[category] || "bg-gray-100 text-gray-500 border-gray-200";
   return (
-    <div className="mb-4 pb-3 border-b border-gray-100 flex justify-between items-center gap-3">
-      <div className="min-w-0">
-        <div className="font-semibold truncate">{title}</div>
-        <div className="text-[13px] text-gray-500 truncate">{subtitle}</div>
+    <div className="flex items-center gap-3 px-6 py-3.5 hover:bg-gray-50/60 transition-colors">
+      <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center flex-shrink-0 text-gray-400">
+        <FiCalendar size={13} />
       </div>
-      <span className="text-xs px-3 py-1 rounded-full bg-blue-100 text-blue-600 font-medium flex-shrink-0">{tag}</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-gray-800 truncate">{title}</p>
+        <p className="text-xs text-gray-400">{participants} participants</p>
+      </div>
+      <span className={`text-xs px-2.5 py-1 rounded-full border font-medium flex-shrink-0 ${tagColor}`}>
+        {category}
+      </span>
     </div>
   );
 }
 
 function HealthRow({ label, value, good }) {
   return (
-    <div className="flex justify-between mb-3">
-      <span className="text-gray-600">{label}</span>
-      <span className={`${good ? "text-green-600" : "text-red-600"} font-semibold`}>{value}</span>
+    <div className="flex items-center justify-between py-3.5">
+      <span className="text-sm text-gray-500">{label}</span>
+      <div className="flex items-center gap-2">
+        <span className={`w-2 h-2 rounded-full ${good ? "bg-green-500" : "bg-red-500"}`} />
+        <span className={`text-sm font-semibold ${good ? "text-green-600" : "text-red-600"}`}>{value}</span>
+      </div>
     </div>
   );
 }
@@ -1347,45 +1425,150 @@ function HealthRow({ label, value, good }) {
    USER MANAGEMENT
 ================================================ */
 function UserManagement() {
-  const users = [
-    { name: "John Doe", role: "Student", college: "Tech University", lastActive: "2 hours ago", status: "Active" },
-    { name: "Sarah Wilson", role: "Organizer", college: "Arts College", lastActive: "1 day ago", status: "Active" },
-  ];
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [search, setSearch] = useState("");
+
+  const fetchUsers = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const { data } = await getAllUsers({ role: "student" });
+      setUsers(data);
+    } catch {
+      setError("Failed to load students. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+
+  const filtered = users.filter((u) =>
+    u.name?.toLowerCase().includes(search.toLowerCase()) ||
+    u.email?.toLowerCase().includes(search.toLowerCase()) ||
+    u.college?.toLowerCase().includes(search.toLowerCase())
+  );
+
   return (
-    <div className="bg-white p-5 sm:p-6 rounded-xl shadow-md shadow-black/5 overflow-x-auto">
-      <div className="flex justify-between items-center mb-5">
-        <h3 className="font-semibold">User Activity</h3>
-        <button className="text-blue-600 font-medium text-sm">View All Users</button>
+    <div>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800">Student Management</h3>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {loading ? "Loading..." : `${filtered.length} student${filtered.length !== 1 ? "s" : ""} registered`}
+          </p>
+        </div>
       </div>
-      <table className="w-full border-collapse min-w-[500px]">
-        <thead>
-          <tr className="text-left text-sm text-gray-500 border-b border-gray-200">
-            <th className="pb-3">User</th><th className="pb-3">Role</th>
-            <th className="pb-3">College</th><th className="pb-3">Last Active</th>
-            <th className="pb-3">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {users.map((user, i) => (
-            <tr key={i} className="border-b border-gray-100 h-[60px]">
-              <td className="flex items-center gap-3 h-[60px]">
-                <div className="w-[34px] h-[34px] rounded-full bg-indigo-100 flex justify-center items-center text-blue-600 flex-shrink-0">
-                  <FiUser size={16} />
-                </div>
-                {user.name}
-              </td>
-              <td>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${user.role === "Student" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}>
-                  {user.role}
-                </span>
-              </td>
-              <td className="text-sm">{user.college}</td>
-              <td className="text-gray-500 text-sm">{user.lastActive}</td>
-              <td className="text-green-600 font-medium text-sm">{user.status}</td>
-            </tr>
+
+      {/* Search */}
+      <div className="bg-white border border-gray-100 rounded-xl p-4 mb-4 shadow-sm">
+        <div className="relative">
+          <FiSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by name, email or college..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-9 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 bg-gray-50"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <FiX size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Content */}
+      {loading ? (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          {[1,2,3,4].map((i) => (
+            <div key={i} className="flex items-center gap-4 px-6 py-4 border-b border-gray-50 animate-pulse">
+              <div className="w-10 h-10 rounded-full bg-gray-100 flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3.5 bg-gray-100 rounded w-1/3" />
+                <div className="h-3 bg-gray-100 rounded w-1/2" />
+              </div>
+              <div className="h-6 w-20 bg-gray-100 rounded-full" />
+            </div>
           ))}
-        </tbody>
-      </table>
+        </div>
+      ) : error ? (
+        <div className="bg-white border border-red-100 rounded-xl p-10 text-center">
+          <FiAlertCircle size={32} className="text-red-400 mx-auto mb-3" />
+          <p className="text-gray-700 font-medium">{error}</p>
+          <button onClick={fetchUsers} className="mt-4 px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors">
+            Retry
+          </button>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white border border-gray-100 rounded-xl p-12 text-center">
+          <FiUsers size={36} className="text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-700 font-semibold">
+            {search ? "No students match your search" : "No students registered yet"}
+          </p>
+          {search && (
+            <button onClick={() => setSearch("")} className="mt-4 px-5 py-2 rounded-lg border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors">
+              Clear Search
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* Table header */}
+          <div className="hidden sm:grid grid-cols-[2fr_2fr_1fr_1fr] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <span>Student</span>
+            <span>College</span>
+            <span>Joined</span>
+            <span>Status</span>
+          </div>
+
+          {/* Rows */}
+          {filtered.map((user, i) => (
+            <div
+              key={user._id || i}
+              className="flex flex-col sm:grid sm:grid-cols-[2fr_2fr_1fr_1fr] gap-2 sm:gap-4 px-6 py-4 border-b border-gray-50 last:border-b-0 hover:bg-gray-50/60 transition-colors"
+            >
+              {/* Student info */}
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm flex-shrink-0">
+                  {user.name?.charAt(0).toUpperCase() || "?"}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 truncate">{user.name}</p>
+                  <p className="text-xs text-gray-400 truncate">{user.email}</p>
+                </div>
+              </div>
+
+              {/* College */}
+              <div className="flex items-center sm:min-w-0 pl-12 sm:pl-0">
+                <span className="text-sm text-gray-500 truncate">{user.college || "—"}</span>
+              </div>
+
+              {/* Joined */}
+              <div className="flex items-center pl-12 sm:pl-0">
+                <span className="text-xs text-gray-400">
+                  {user.createdAt ? new Date(user.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                </span>
+              </div>
+
+              {/* Status */}
+              <div className="flex items-center pl-12 sm:pl-0">
+                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                  user.status === "approved" ? "bg-green-100 text-green-700" :
+                  user.status === "pending"  ? "bg-yellow-100 text-yellow-700" :
+                  "bg-red-100 text-red-700"
+                }`}>
+                  {user.status ? user.status.charAt(0).toUpperCase() + user.status.slice(1) : "Active"}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -1394,27 +1577,256 @@ function UserManagement() {
    REGISTRATIONS
 ================================================ */
 function Registrations() {
-  const registrations = [
-    { name: "Rahul", event: "Hackathon 2024", college: "ABC College", status: "Approved" },
-    { name: "Anita", event: "Cultural Fest", college: "XYZ College", status: "Pending" },
-    { name: "John", event: "Web Workshop", college: "Tech University", status: "Rejected" },
-  ];
-  return (
-    <div className="bg-white p-5 sm:p-6 rounded-xl shadow-md shadow-black/5">
-      <h3 className="mb-5 text-lg font-semibold">Event Registrations</h3>
-      {registrations.map((reg, i) => (
-        <div key={i} className="flex justify-between p-4 border border-gray-200 rounded-lg mb-3 gap-3">
-          <div className="min-w-0">
-            <div className="font-semibold">{reg.name}</div>
-            <div className="text-sm text-gray-500 truncate">{reg.event} • {reg.college}</div>
+  const [registrations, setRegistrations] = useState([]);
+  const [loading, setLoading]             = useState(true);
+  const [actionId, setActionId]           = useState(null);
+  const [selectedEvent, setSelectedEvent] = useState("all");
+  const [statusTab, setStatusTab]         = useState("all");
+  const [search, setSearch]               = useState("");
+  const [events, setEvents]               = useState([]);
+
+  const fetchAll = useCallback(async () => {
+    try {
+      setLoading(true);
+      const { data: myEvents } = await getMyEvents();
+      setEvents(myEvents);
+      const allRegs = await Promise.all(
+        myEvents.map(async (ev) => {
+          try {
+            const { data } = await getEventRegistrations(ev._id);
+            return data.map((r) => ({ ...r, eventTitle: ev.title }));
+          } catch { return []; }
+        })
+      );
+      setRegistrations(allRegs.flat());
+    } catch { /* silent */ }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleApprove = async (id) => {
+    try {
+      setActionId(id);
+      await approveRegistration(id);
+      setRegistrations((prev) =>
+        prev.map((r) => r._id === id ? { ...r, status: "approved" } : r)
+      );
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to approve");
+    } finally { setActionId(null); }
+  };
+
+  const handleReject = async (id) => {
+    if (!window.confirm("Reject this registration?")) return;
+    try {
+      setActionId(id);
+      await rejectRegistration(id);
+      setRegistrations((prev) =>
+        prev.map((r) => r._id === id ? { ...r, status: "rejected" } : r)
+      );
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to reject");
+    } finally { setActionId(null); }
+  };
+
+  const counts = {
+    all:      registrations.length,
+    pending:  registrations.filter((r) => r.status === "pending").length,
+    approved: registrations.filter((r) => r.status === "approved").length,
+    rejected: registrations.filter((r) => r.status === "rejected").length,
+  };
+
+  const filtered = registrations.filter((r) => {
+    const matchEvent  = selectedEvent === "all" || r.eventTitle === selectedEvent;
+    const matchStatus = statusTab === "all" || r.status === statusTab;
+    const matchSearch = !search ||
+      r.userId?.name?.toLowerCase().includes(search.toLowerCase()) ||
+      r.userId?.email?.toLowerCase().includes(search.toLowerCase()) ||
+      r.eventTitle?.toLowerCase().includes(search.toLowerCase());
+    return matchEvent && matchStatus && matchSearch;
+  });
+
+  const statusConfig = {
+    pending:  { label: "Pending",  bg: "bg-amber-50",  text: "text-amber-700",  border: "border-amber-200",  dot: "bg-amber-400" },
+    approved: { label: "Approved", bg: "bg-green-50",  text: "text-green-700",  border: "border-green-200",  dot: "bg-green-500" },
+    rejected: { label: "Rejected", bg: "bg-red-50",    text: "text-red-700",    border: "border-red-200",    dot: "bg-red-400"   },
+  };
+
+  if (loading) {
+    return (
+      <div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-800">Registrations</h3>
+            <p className="text-sm text-gray-500 mt-0.5">Loading registrations...</p>
           </div>
-          <span className={`px-3 py-1 rounded-full text-xs font-medium self-center flex-shrink-0 ${
-            reg.status === "Approved" ? "bg-green-100 text-green-800"
-            : reg.status === "Pending" ? "bg-yellow-100 text-yellow-800"
-            : "bg-red-100 text-red-800"
-          }`}>{reg.status}</span>
         </div>
-      ))}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          {[1,2,3].map((i) => (
+            <div key={i} className="flex items-center gap-4 px-6 py-5 border-b border-gray-50 animate-pulse">
+              <div className="w-10 h-10 rounded-full bg-gray-100 flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3.5 bg-gray-100 rounded w-1/4" />
+                <div className="h-3 bg-gray-100 rounded w-2/5" />
+              </div>
+              <div className="h-6 w-24 bg-gray-100 rounded-full" />
+              <div className="h-8 w-20 bg-gray-100 rounded-lg" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800">Registrations</h3>
+          <p className="text-sm text-gray-500 mt-0.5">{filtered.length} registration{filtered.length !== 1 ? "s" : ""} found</p>
+        </div>
+        {/* Event filter */}
+        {events.length > 0 && (
+          <select
+            value={selectedEvent}
+            onChange={(e) => setSelectedEvent(e.target.value)}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-600/20 bg-white self-start sm:self-auto"
+          >
+            <option value="all">All Events</option>
+            {events.map((ev) => (
+              <option key={ev._id} value={ev.title}>{ev.title}</option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {/* Status Tabs */}
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {["all", "pending", "approved", "rejected"].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setStatusTab(tab)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-all ${
+              statusTab === tab
+                ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            {tab !== "all" && (
+              <span className={`w-2 h-2 rounded-full ${statusTab === tab ? "bg-white" : statusConfig[tab]?.dot}`} />
+            )}
+            <span className="capitalize">{tab === "all" ? "All" : statusConfig[tab].label}</span>
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
+              statusTab === tab ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"
+            }`}>
+              {counts[tab]}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Search */}
+      <div className="bg-white border border-gray-100 rounded-xl p-4 mb-4 shadow-sm">
+        <div className="relative">
+          <FiSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search by student name, email or event..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-9 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 bg-gray-50"
+          />
+          {search && (
+            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <FiX size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* List */}
+      {filtered.length === 0 ? (
+        <div className="bg-white border border-gray-100 rounded-xl p-12 text-center">
+          <FiCheckCircle size={36} className="text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-700 font-semibold">No registrations found</p>
+          <p className="text-sm text-gray-400 mt-1">Try changing the filters or search term.</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          {filtered.map((reg, i) => {
+            const student  = reg.userId;
+            const isActing = actionId === reg._id;
+            const sc       = statusConfig[reg.status] || statusConfig.pending;
+            return (
+              <div
+                key={reg._id}
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-4 border-b border-gray-50 last:border-b-0 hover:bg-gray-50/60 transition-colors"
+              >
+                {/* Left — student info */}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm flex-shrink-0">
+                    {student?.name?.charAt(0).toUpperCase() || "?"}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-800">{student?.name || "Unknown"}</p>
+                    <p className="text-xs text-gray-400 truncate">{student?.email}</p>
+                    {student?.college && (
+                      <p className="text-xs text-gray-400 truncate">{student.college}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Middle — event name */}
+                <div className="hidden md:flex items-center min-w-0 flex-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FiCalendar size={13} className="text-gray-300 flex-shrink-0" />
+                    <span className="text-sm text-gray-500 truncate">{reg.eventTitle}</span>
+                  </div>
+                </div>
+
+                {/* Right — status + actions */}
+                <div className="flex items-center gap-3 flex-shrink-0 pl-13 sm:pl-0">
+                  <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                    {sc.label}
+                  </span>
+
+                  {reg.status === "pending" && (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleApprove(reg._id)}
+                        disabled={isActing}
+                        className="px-3.5 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {isActing ? (
+                          <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <FiCheckCircle size={13} />
+                        )}
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleReject(reg._id)}
+                        disabled={isActing}
+                        className="px-3.5 py-1.5 rounded-lg border border-red-200 text-red-600 text-xs font-semibold hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {isActing ? (
+                          <span className="w-3.5 h-3.5 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
+                        ) : (
+                          <FiX size={13} />
+                        )}
+                        Reject
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

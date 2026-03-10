@@ -12,6 +12,7 @@ export const createEvent = async (req, res) => {
       endDate,
       location,
       description,
+      maxParticipants,
     } = req.body;
 
     // Trim inputs to prevent space issues
@@ -34,6 +35,12 @@ export const createEvent = async (req, res) => {
       });
     }
 
+    if (!maxParticipants || isNaN(maxParticipants) || Number(maxParticipants) < 1) {
+      return res.status(400).json({
+        message: "Max participants must be at least 1",
+      });
+    }
+
     if (new Date(startDate) > new Date(endDate)) {
       return res.status(400).json({
         message: "End date must be after start date",
@@ -51,6 +58,7 @@ export const createEvent = async (req, res) => {
       endDate,
       location: locationClean,
       description: descriptionClean,
+      maxParticipants: Number(maxParticipants),
       image: req.file
         ? req.file.path.replace(/\\/g, "/")
         : null,

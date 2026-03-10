@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { getEventById, getImageUrl } from "../services/api";
+import { getEventById, getImageUrl, registerForEvent, getMyRegistrations } from "../services/api";
+import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
@@ -87,6 +88,7 @@ export default function EventDetail() {
   const [loading,        setLoading]        = useState(true);
   const [error,          setError]          = useState(null);
   const [registered,     setRegistered]     = useState(false);
+  const [registrationId, setRegistrationId] = useState(null);
   const [registerLoading,setRegisterLoading]= useState(false);
   const [copied,         setCopied]         = useState(false);
 
@@ -107,8 +109,24 @@ export default function EventDetail() {
     }
   };
 
+  // Check if student is already registered for this event
+  const checkRegistration = async () => {
+    if (!user || user.role !== "student") return;
+    try {
+      const { data } = await getMyRegistrations();
+      const match = data.find((r) => r.eventId?._id === id || r.eventId === id);
+      if (match) {
+        setRegistered(true);
+        setRegistrationId(match._id);
+      }
+    } catch {
+      // silent — not critical
+    }
+  };
+
   useEffect(() => {
     fetchEvent();
+    checkRegistration();
     window.scrollTo(0, 0);
   }, [id]);
 
@@ -120,11 +138,22 @@ export default function EventDetail() {
   };
 
   const handleRegister = async () => {
-    setRegisterLoading(true);
-    // Replace with actual registration endpoint when available
-    await new Promise((r) => setTimeout(r, 1000));
-    setRegisterLoading(false);
-    setRegistered(true);
+    if (!user) {
+      toast.error("Please login to register for this event");
+      return;
+    }
+    try {
+      setRegisterLoading(true);
+      const { data } = await registerForEvent(id);
+      setRegistered(true);
+      setRegistrationId(data._id);
+      toast.success("Registered successfully! Awaiting admin approval.");
+    } catch (err) {
+      const msg = err.response?.data?.message || "Registration failed. Please try again.";
+      toast.error(msg);
+    } finally {
+      setRegisterLoading(false);
+    }
   };
 
   /* ── Loading ── */
