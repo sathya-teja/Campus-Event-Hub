@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import StatsCard from "../components/StatsCard";
 import Sidebar from "../components/Sidebar";
 import QuickActions from "../components/QuickActions";
 import RecentEvents from "../components/RecentEvents";
+import { getMyRegistrations, cancelRegistration } from "../services/api";
+import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 import {
   FiList,
   FiCalendar,
@@ -11,6 +14,7 @@ import {
   FiCheckCircle,
   FiHome,
   FiUser,
+  FiX,
 } from "react-icons/fi";
 
 export default function StudentDashboard() {
@@ -106,36 +110,114 @@ export default function StudentDashboard() {
 /* ================= MY EVENTS SECTION ================= */
 
 function MyEvents() {
-  const events = [
-    { title: "Hackathon 2024", date: "March 20, 2026", status: "Upcoming" },
-    { title: "Cultural Fest", date: "February 10, 2026", status: "Completed" },
-  ];
+  const navigate = useNavigate();
+  const [registrations, setRegistrations] = useState([]);
+  const [loading, setLoading]             = useState(true);
+  const [cancellingId, setCancellingId]   = useState(null);
+
+  const fetchRegistrations = async () => {
+    try {
+      setLoading(true);
+      const { data } = await getMyRegistrations();
+      setRegistrations(data);
+    } catch {
+      toast.error("Failed to load your registrations");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchRegistrations(); }, []);
+
+  const handleCancel = async (id) => {
+    if (!window.confirm("Are you sure you want to cancel this registration?")) return;
+    try {
+      setCancellingId(id);
+      await cancelRegistration(id);
+      toast.success("Registration cancelled");
+      setRegistrations((prev) => prev.filter((r) => r._id !== id));
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to cancel registration");
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  const getStatusStyle = (status) => {
+    if (status === "approved")  return "bg-green-100 text-green-800";
+    if (status === "rejected")  return "bg-red-100 text-red-800";
+    return "bg-yellow-100 text-yellow-800";
+  };
+
+  if (loading) {
+    return (
+      <div className="bg-white p-5 sm:p-6 rounded-xl shadow-md shadow-black/5">
+        <h3 className="mb-5 text-lg font-semibold">My Registered Events</h3>
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-16 bg-gray-100 rounded-lg mb-3 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (registrations.length === 0) {
+    return (
+      <div className="bg-white p-5 sm:p-6 rounded-xl shadow-md shadow-black/5 text-center py-12">
+        <FiCalendar size={36} className="text-gray-300 mx-auto mb-3" />
+        <p className="text-gray-500 font-medium">You haven't registered for any events yet</p>
+        <button
+          onClick={() => navigate("/events")}
+          className="mt-4 px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
+        >
+          Browse Events
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white p-5 sm:p-6 rounded-xl shadow-md shadow-black/5">
-      <h3 className="mb-5 text-lg font-semibold">My Events</h3>
+      <h3 className="mb-5 text-lg font-semibold">My Registered Events</h3>
 
-      {events.map((event, index) => (
-        <div
-          key={index}
-          className="flex justify-between items-center p-4 border border-gray-200 rounded-lg mb-4"
-        >
-          <div>
-            <div className="font-semibold">{event.title}</div>
-            <div className="text-sm text-gray-500">{event.date}</div>
-          </div>
+      {registrations.map((reg) => {
+        const event = reg.eventId;
+        if (!event) return null;
+        const startDate = new Date(event.startDate).toLocaleDateString("en-IN", {
+          day: "numeric", month: "short", year: "numeric",
+        });
+        const canCancel = reg.status !== "rejected";
 
-          <span
-            className={`px-3 py-1 rounded-full text-xs font-medium flex-shrink-0 ml-3 ${
-              event.status === "Upcoming"
-                ? "bg-yellow-100 text-yellow-800"
-                : "bg-green-100 text-green-800"
-            }`}
+        return (
+          <div
+            key={reg._id}
+            className="flex justify-between items-center p-4 border border-gray-200 rounded-lg mb-3 gap-3"
           >
-            {event.status}
-          </span>
-        </div>
-      ))}
+            <div className="min-w-0 flex-1 cursor-pointer" onClick={() => navigate(`/events/${event._id}`)}>
+              <div className="font-semibold truncate">{event.title}</div>
+              <div className="text-sm text-gray-500">{startDate} • {event.location}</div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className={`px-3 py-1 rounded-full text-xs font-medium capitalize ${getStatusStyle(reg.status)}`}>
+                {reg.status}
+              </span>
+              {canCancel && (
+                <button
+                  onClick={() => handleCancel(reg._id)}
+                  disabled={cancellingId === reg._id}
+                  className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition disabled:opacity-50"
+                  title="Cancel registration"
+                >
+                  {cancellingId === reg._id
+                    ? <span className="w-3.5 h-3.5 border-2 border-red-300 border-t-red-500 rounded-full animate-spin block" />
+                    : <FiX size={14} />
+                  }
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

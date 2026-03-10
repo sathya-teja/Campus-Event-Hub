@@ -1,5 +1,7 @@
 import bcrypt from "bcryptjs";
 import User from "../models/User.js";
+import { sendEmail, emailTemplates } from "../services/emailService.js";           // 🔔 NEW
+import { createAndSendNotification } from "./notificationController.js";           // 🔔 NEW
 
 /*
 ========================================
@@ -106,15 +108,30 @@ export const rejectAdmin = async (req, res) => {
     }
 
     admin.status = "rejected";
-
     await admin.save();
 
     res.status(200).json({ message: "Admin rejected successfully" });
+
+    // 🔔 NEW — send in-app + email + browser push (non-blocking, after response sent)
+    try {
+      await createAndSendNotification({
+        userId: admin._id,
+        title: "Account Rejected ❌",
+        message: "Your college admin account request has been rejected. Please contact support.",
+        type: "admin_rejected",
+        link: "/",
+      });
+      const template = emailTemplates.adminRejected(admin.name);
+      await sendEmail({ to: admin.email, ...template });
+    } catch (notifError) {
+      console.error("⚠️ Notification error (non-blocking):", notifError.message);
+    }
 
   } catch (error) {
     res.status(500).json({ message: "Error rejecting admin" });
   }
 };
+
 /*
 ========================================
 👥 GET ALL USERS (Super Admin)

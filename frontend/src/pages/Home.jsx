@@ -20,7 +20,7 @@ import {
   Search,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
-import { getEvents, getImageUrl } from "../services/api";
+import { getEvents, getImageUrl, getTotalRegistrations } from "../services/api";
 
 
 /* ── Category styling ── */
@@ -70,40 +70,51 @@ export default function Home() {
 
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, upcoming: 0, colleges: 0, categories: 0 });
+  const [stats, setStats] = useState({ total: 0, upcoming: 0, colleges: 0, categories: 0, students: 0 });
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
 
   /* ── Fetch live events ── */
   useEffect(() => {
-    const fetchEvents = async () => {
+    const fetchData = async () => {
       try {
         setEventsLoading(true);
         const { data } = await getEvents();
+        const { data: statsData } = await getTotalRegistrations();
+        
         setEvents(data);
         const upcoming = data.filter((e) => new Date(e.startDate) > new Date()).length;
         const colleges = [...new Set(data.map((e) => e.createdBy?.college).filter(Boolean))].length;
         const categories = [...new Set(data.map((e) => e.category))].length;
-        setStats({ total: data.length, upcoming, colleges, categories });
+        
+        setStats({ 
+          total: data.length, 
+          upcoming, 
+          colleges, 
+          categories,
+          students: statsData.totalStudents,
+        });
       } catch {
         // Silently fail — show empty states
       } finally {
         setEventsLoading(false);
       }
     };
-    fetchEvents();
+    fetchData();
   }, []);
 
   /* ── Filter for featured section ── */
   const categories = ["All", ...new Set(events.map((e) => e.category))];
   const filteredEvents = events
     .filter((e) => {
+      const status = getStatus(e.startDate, e.endDate);
+      const isPastEvent = status === "Past";
       const matchCat = activeCategory === "All" || e.category === activeCategory;
       const matchSearch =
         !searchQuery ||
         e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         e.location?.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchCat && matchSearch;
+      return !isPastEvent && matchCat && matchSearch;
     })
     .slice(0, 6);
 
@@ -208,7 +219,7 @@ export default function Home() {
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && navigate(`/events?q=${searchQuery}`)}
                   placeholder="Search events, colleges, topics..."
-                  className="w-full pl-11 pr-32 py-3.5 bg-white/8 backdrop-blur border border-white/10 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                  className="w-full pl-11 pr-32 py-3.5 bg-white/10 backdrop-blur border border-white/20 rounded-xl text-sm text-gray-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 />
                 <button
                   onClick={() => navigate("/events")}
@@ -251,7 +262,7 @@ export default function Home() {
                 {[
                   { value: stats.total || "50+", label: "Events" },
                   { value: stats.colleges || "10+", label: "Colleges" },
-                  { value: "1000+", label: "Students" },
+                  { value: stats.students || "0", label: "Students" },
                   { value: stats.upcoming || "20+", label: "Upcoming" },
                 ].map((stat, i) => (
                   <div key={i} className="flex flex-col">

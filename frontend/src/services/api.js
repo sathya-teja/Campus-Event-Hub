@@ -36,6 +36,7 @@ export const updateProfile  = (data) =>
 
 export const changePassword = (data) => API.put("/users/change-password", data);
 export const deleteAccount  = ()     => API.delete("/users/delete-account");
+export const getAllUsers = (params) => API.get("/users/all-users", { params });
 
 /* ================= EVENT APIs ================= */
 
@@ -51,6 +52,43 @@ export const updateEvent    = (id, data)   =>
   });
 export const deleteEvent    = (id)         => API.delete(`/events/${id}`);
 export const getMyEvents = () => API.get("/events/my-events");
+
+/* ================= REGISTRATION APIs ================= */
+
+export const registerForEvent       = (eventId)  => API.post("/registrations", { eventId });
+export const getMyRegistrations     = ()          => API.get("/registrations/my");
+export const cancelRegistration     = (id)        => API.delete(`/registrations/cancel/${id}`);
+export const getEventRegistrations  = (eventId)   => API.get(`/registrations/event/${eventId}`);
+export const getAllRegistrations     = ()          => API.get("/registrations/all");
+export const approveRegistration    = (id)        => API.put(`/registrations/approve/${id}`);
+export const rejectRegistration     = (id)        => API.put(`/registrations/reject/${id}`);
+export const getTotalRegistrations = () => API.get("/registrations/stats/total");
+export const getMyEventStudents = () => API.get("/registrations/my-students");
+// Export Registrations
+export const exportRegistrationsCSV = (eventId) => 
+  API.get(`/registrations/export/${eventId}/csv`, { responseType: "blob" });
+
+export const exportRegistrationsExcel = (eventId) => 
+  API.get(`/registrations/export/${eventId}/excel`, { responseType: "blob" });
+
+export const exportRegistrationsPDF = (eventId) => 
+  API.get(`/registrations/export/${eventId}/pdf`, { responseType: "blob" });
+
+export const exportRegistrationsJSON = (eventId) => 
+  API.get(`/registrations/export/${eventId}/json`, { responseType: "blob" });
+
+// Export All Registrations
+export const exportAllRegistrationsCSV = () => 
+  API.get(`/registrations/export-all/csv`, { responseType: "blob" });
+
+export const exportAllRegistrationsExcel = () => 
+  API.get(`/registrations/export-all/excel`, { responseType: "blob" });
+
+export const exportAllRegistrationsPDF = () => 
+  API.get(`/registrations/export-all/pdf`, { responseType: "blob" });
+
+export const exportAllRegistrationsJSON = () => 
+  API.get(`/registrations/export-all/json`, { responseType: "blob" });
 
 /* ================= CHAT API ================= */
 

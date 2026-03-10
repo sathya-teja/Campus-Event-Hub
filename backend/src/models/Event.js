@@ -31,6 +31,17 @@ const eventSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    maxParticipants: {
+  type: Number,
+  required: true,
+  min: 1
+},
+
+currentParticipants: {
+  type: Number,
+  default: 0,
+  min: 0
+},
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

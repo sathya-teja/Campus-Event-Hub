@@ -3,6 +3,8 @@ import jwt from "jsonwebtoken";
 import User from "../models/User.js";
 import crypto from "crypto";
 import nodemailer from "nodemailer";
+import { sendEmail, emailTemplates } from "../services/emailService.js";           // 🔔 NEW
+import { createAndSendNotification } from "./notificationController.js";           // 🔔 NEW
 
 /*
 ========================================
@@ -131,14 +133,15 @@ export const loginUser = async (req, res) => {
     );
 
     res.status(200).json({
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
-    });
+  token,
+  user: {
+    id: user._id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    profileImage: user.profileImage,  // ✅ ADD THIS LINE
+  },
+});
   } catch (error) {
     res.status(500).json({
       message: "Server error during login",
@@ -190,19 +193,34 @@ export const approveCollegeAdmin = async (req, res) => {
   });
 }
 
-
     admin.status = "approved";
     await admin.save();
 
     res.status(200).json({
       message: "College Admin approved successfully",
     });
+
+    // 🔔 NEW — send in-app + email + browser push (non-blocking, after response sent)
+    try {
+      await createAndSendNotification({
+        userId: admin._id,
+        title: "Account Approved ✅",
+        message: "Your college admin account has been approved. You can now log in.",
+        type: "admin_approved",
+        link: "/dashboard/collegeadmin", 
+      });
+      const template = emailTemplates.adminApproved(admin.name);
+      await sendEmail({ to: admin.email, ...template });
+    } catch (notifError) {
+      console.error("⚠️ Notification error (non-blocking):", notifError.message);
+    }
   } catch (error) {
     res.status(500).json({
       message: "Approval failed",
     });
   }
 };
+
 /*
 ========================================
 📋 GET PENDING COLLEGE ADMINS
@@ -222,6 +240,7 @@ export const getPendingAdmins = async (req, res) => {
     });
   }
 };
+
 /*
 ========================================
 🔐 FORGOT PASSWORD
