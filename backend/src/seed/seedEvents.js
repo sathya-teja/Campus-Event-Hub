@@ -244,27 +244,66 @@ const seedEvents = async () => {
 
     console.log(`👤 Using admin: ${admin.name} (${admin.email})\n`);
 
-    // Optional: wipe existing seeded events
-    const existingCount = await Event.countDocuments({ createdBy: admin._id });
-    if (existingCount > 0) {
-      console.log(`🗑️  Removing ${existingCount} existing event(s) for this admin...`);
-      await Event.deleteMany({ createdBy: admin._id });
+    // ─────────────────────────────────────────────
+    // STEP 1: Ensure participant fields exist
+    // ─────────────────────────────────────────────
+
+    console.log("🔧 Checking existing events for missing participant fields...");
+
+    const updated = await Event.updateMany(
+      {
+        $or: [
+          { maxParticipants: { $exists: false } },
+          { currentParticipants: { $exists: false } }
+        ]
+      },
+      {
+        $set: {
+          maxParticipants: 100,
+          currentParticipants: 0
+        }
+      }
+    );
+
+    if (updated.modifiedCount > 0) {
+      console.log(`✅ Updated ${updated.modifiedCount} existing event(s)`);
+    } else {
+      console.log("✔ All existing events already have participant fields");
     }
 
-    const events = getEvents(admin._id);
-    const created = await Event.insertMany(events);
+    // ─────────────────────────────────────────────
+    // STEP 2: Seed events ONLY if DB is empty
+    // ─────────────────────────────────────────────
 
-    console.log(`\n✅ Successfully seeded ${created.length} events:\n`);
-    created.forEach((e, i) => {
-      console.log(`  ${i + 1}. [${e.category.padEnd(8)}] ${e.title}`);
-    });
+    const existingCount = await Event.countDocuments();
 
-    console.log("\n🎉 Seed complete!\n");
+    if (existingCount === 0) {
+      console.log("📦 No events found. Seeding new events...\n");
+
+      const events = getEvents(admin._id).map(e => ({
+        ...e,
+        maxParticipants: 100,
+        currentParticipants: 0
+      }));
+
+      const created = await Event.insertMany(events);
+
+      console.log(`\n✅ Successfully seeded ${created.length} events:\n`);
+      created.forEach((e, i) => {
+        console.log(`  ${i + 1}. [${e.category.padEnd(8)}] ${e.title}`);
+      });
+    } else {
+      console.log(`ℹ ${existingCount} events already exist. Skipping event creation.`);
+    }
+
+    console.log("\n🎉 Seed check complete!\n");
     process.exit(0);
+
   } catch (error) {
     console.error("❌ Seed failed:", error.message);
     process.exit(1);
   }
 };
+
 
 seedEvents();
