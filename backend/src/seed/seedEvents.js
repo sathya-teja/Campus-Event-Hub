@@ -272,28 +272,24 @@ const seedEvents = async () => {
     }
 
     // ─────────────────────────────────────────────
-    // STEP 2: Seed events ONLY if DB is empty
+    // STEP 2: Only insert events that don't exist yet (checked by title)
     // ─────────────────────────────────────────────
 
-    const existingCount = await Event.countDocuments();
+    const existingTitles = await Event.distinct("title");
 
-    if (existingCount === 0) {
-      console.log("📦 No events found. Seeding new events...\n");
+    const eventsToInsert = getEvents(admin._id)
+      .filter(e => !existingTitles.includes(e.title))
+      .map(e => ({ ...e, maxParticipants: 100, currentParticipants: 0 }));
 
-      const events = getEvents(admin._id).map(e => ({
-        ...e,
-        maxParticipants: 100,
-        currentParticipants: 0
-      }));
-
-      const created = await Event.insertMany(events);
-
+    if (eventsToInsert.length === 0) {
+      console.log("ℹ️  All seed events already exist. Nothing to insert.");
+    } else {
+      console.log(`📦 Inserting ${eventsToInsert.length} missing event(s)...\n`);
+      const created = await Event.insertMany(eventsToInsert);
       console.log(`\n✅ Successfully seeded ${created.length} events:\n`);
       created.forEach((e, i) => {
         console.log(`  ${i + 1}. [${e.category.padEnd(8)}] ${e.title}`);
       });
-    } else {
-      console.log(`ℹ ${existingCount} events already exist. Skipping event creation.`);
     }
 
     console.log("\n🎉 Seed check complete!\n");
