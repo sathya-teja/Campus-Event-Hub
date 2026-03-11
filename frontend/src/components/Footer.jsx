@@ -1,44 +1,119 @@
-import { Mail, Github, Linkedin } from "lucide-react";
+import { Mail, Github, Linkedin, MapPin, ArrowRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export default function Footer() {
+  const navigate = useNavigate();
+  const year = new Date().getFullYear();
+
   return (
-    <footer className="bg-white border-t border-blue-100">
-      <div className="max-w-7xl mx-auto px-6 py-12 grid md:grid-cols-3 gap-8 text-sm">
-        {/* Brand */}
-        <div>
-          <h4 className="font-semibold text-blue-700 mb-3">
-            CampusEventHub
-          </h4>
-          <p className="text-slate-500">
-            A modern platform for discovering, managing, and participating in
-            inter-college events.
-          </p>
-        </div>
+    <footer className="bg-white border-t border-gray-100">
 
-        {/* Quick Links */}
-        <div>
-          <h4 className="font-semibold mb-3">Quick Links</h4>
-          <ul className="space-y-2 text-slate-500">
-            <li className="hover:text-blue-600 cursor-pointer">Home</li>
-            <li className="hover:text-blue-600 cursor-pointer">Events</li>
-            <li className="hover:text-blue-600 cursor-pointer">Register</li>
-          </ul>
-        </div>
+      {/* Main content */}
+      <div className="max-w-7xl mx-auto px-6 pt-14 pb-10">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-10">
 
-        {/* Contact */}
-        <div>
-          <h4 className="font-semibold mb-3">Contact</h4>
-          <div className="flex gap-3 text-slate-500">
-            <Mail className="w-5 h-5 hover:text-blue-600 cursor-pointer" />
-            <Github className="w-5 h-5 hover:text-blue-600 cursor-pointer" />
-            <Linkedin className="w-5 h-5 hover:text-blue-600 cursor-pointer" />
+          {/* Brand */}
+          <div className="md:col-span-5">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+                <span className="text-white text-xs font-black">CE</span>
+              </div>
+              <span className="text-gray-900 font-bold text-lg tracking-tight">
+                CampusEvent<span className="text-blue-600">Hub</span>
+              </span>
+            </div>
+            <p className="text-sm leading-relaxed text-gray-500 max-w-sm mb-6">
+              A modern platform for discovering, managing, and participating in
+              inter-college events across every campus.
+            </p>
+
+            {/* Social icons */}
+            <div className="flex items-center gap-3">
+              {[
+                { icon: <Mail size={15} />,     label: "Email" },
+                { icon: <Github size={15} />,   label: "GitHub" },
+                { icon: <Linkedin size={15} />, label: "LinkedIn" },
+              ].map(({ icon, label }) => (
+                <button
+                  key={label}
+                  aria-label={label}
+                  className="w-9 h-9 rounded-lg bg-gray-100 hover:bg-blue-600 hover:text-white flex items-center justify-center text-gray-500 transition-all duration-200"
+                >
+                  {icon}
+                </button>
+              ))}
+            </div>
           </div>
+
+          {/* Quick Links */}
+          <div className="md:col-span-3">
+            <h4 className="text-gray-900 text-sm font-semibold mb-4 uppercase tracking-wider">
+              Navigate
+            </h4>
+            <ul className="space-y-3">
+              {[
+                { label: "Home",     path: "/" },
+                { label: "Events",   path: "/events" },
+                { label: "Register", path: "/register" },
+                { label: "Login",    path: "/login" },
+              ].map(({ label, path }) => (
+                <li key={label}>
+                  <button
+                    onClick={() => navigate(path)}
+                    className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-blue-600 transition-colors group"
+                  >
+                    <ArrowRight
+                      size={12}
+                      className="opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200"
+                    />
+                    {label}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Contact */}
+          <div className="md:col-span-4">
+            <h4 className="text-gray-900 text-sm font-semibold mb-4 uppercase tracking-wider">
+              Contact
+            </h4>
+            <ul className="space-y-3">
+              <li className="flex items-start gap-2.5 text-sm text-gray-500">
+                <Mail size={15} className="mt-0.5 flex-shrink-0 text-blue-600" />
+                <span>support@campuseventhub.in</span>
+              </li>
+              <li className="flex items-start gap-2.5 text-sm text-gray-500">
+                <MapPin size={15} className="mt-0.5 flex-shrink-0 text-blue-600" />
+                <span>Andhra Pradesh, India</span>
+              </li>
+            </ul>
+
+            <button
+              onClick={() => navigate("/register")}
+              className="mt-6 flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all duration-200 shadow-sm shadow-blue-600/20 hover:shadow-md hover:shadow-blue-600/30"
+            >
+              Get Started Free <ArrowRight size={13} />
+            </button>
+          </div>
+
         </div>
       </div>
 
-      <div className="text-center text-xs text-slate-400 pb-6">
-        © {new Date().getFullYear()} CampusEventHub. All rights reserved.
+      {/* Divider */}
+      <div className="border-t border-gray-100 mx-6" />
+
+      {/* Bottom bar */}
+      <div className="max-w-7xl mx-auto px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <p className="text-xs text-gray-400">
+          © {year} CampusEventHub. All rights reserved.
+        </p>
+        <div className="flex items-center gap-4 text-xs text-gray-400">
+          <button className="hover:text-gray-600 transition-colors">Privacy Policy</button>
+          <button className="hover:text-gray-600 transition-colors">Terms of Service</button>
+        </div>
       </div>
+
     </footer>
   );
 }
