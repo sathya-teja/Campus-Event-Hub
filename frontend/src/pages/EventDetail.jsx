@@ -18,6 +18,12 @@ import {
   FiShare2,
   FiCheckCircle,
   FiExternalLink,
+  FiUsers,
+  FiEdit,
+  FiSettings,
+  FiMaximize,
+  FiLink,
+  FiMessageSquare,
 } from "react-icons/fi";
 
 
@@ -91,6 +97,13 @@ export default function EventDetail() {
   const [registrationId, setRegistrationId] = useState(null);
   const [registerLoading,setRegisterLoading]= useState(false);
   const [copied,         setCopied]         = useState(false);
+  
+  // New state variables for improvements
+  const [registrationStatus, setRegistrationStatus] = useState(null);
+  const [timeLeft, setTimeLeft] = useState(null);
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
 
   const fetchEvent = async () => {
     try {
@@ -115,9 +128,15 @@ export default function EventDetail() {
     try {
       const { data } = await getMyRegistrations();
       const match = data.find((r) => r.eventId?._id === id || r.eventId === id);
-      if (match) {
+      if (match && match.status !== 'rejected') {
+        // Only set registered if status is NOT rejected
         setRegistered(true);
         setRegistrationId(match._id);
+        setRegistrationStatus(match); // Store full registration object
+      } else if (match && match.status === 'rejected') {
+        // If rejected, don't mark as registered
+        setRegistered(false);
+        setRegistrationStatus(match); // Still store for showing rejection message
       }
     } catch {
       // silent — not critical
@@ -130,12 +149,108 @@ export default function EventDetail() {
     window.scrollTo(0, 0);
   }, [id]);
 
+  // Countdown timer for upcoming events
+  useEffect(() => {
+    if (!event || getStatus(event.startDate, event.endDate) !== 'Upcoming') return;
+    
+    const calculateTimeLeft = () => {
+      const now = new Date();
+      const start = new Date(event.startDate);
+      const diff = start - now;
+      
+      if (diff <= 0) return null;
+      
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      
+      return { days, hours, minutes };
+    };
+    
+    setTimeLeft(calculateTimeLeft());
+    const interval = setInterval(() => {
+      setTimeLeft(calculateTimeLeft());
+    }, 60000); // Update every minute
+    
+    return () => clearInterval(interval);
+  }, [event]);
+
+  // Sticky header on scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 300);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
   };
+
+  // Add to Google Calendar
+  const addToCalendar = () => {
+    if (!event) return;
+
+    const fmt = (d) => new Date(d).toISOString().replace(/-|:|\.\d{3}/g, '');
+    const start = fmt(event.startDate);
+    const end   = fmt(event.endDate);
+
+    const params = new URLSearchParams({
+      action:   "TEMPLATE",
+      text:     event.title,
+      dates:    `${start}/${end}`,
+      details:  event.description || "",
+      location: event.location    || "",
+    });
+
+    window.open(
+      `https://calendar.google.com/calendar/render?${params.toString()}`,
+      "_blank"
+    );
+  };
+
+  // Share options for dropdown menu
+  const shareOptions = [
+    {
+      name: 'Copy Link',
+      icon: <FiLink size={16} className="text-gray-600" />,
+      action: () => {
+        navigator.clipboard.writeText(window.location.href);
+        toast.success('Link copied!');
+        setShowShareMenu(false);
+      }
+    },
+    {
+      name: 'WhatsApp',
+      icon: <FiMessageSquare size={16} className="text-green-600" />,
+      action: () => {
+        const text = `Check out this event: ${event.title}\n${window.location.href}`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+        setShowShareMenu(false);
+      }
+    },
+    {
+      name: 'Twitter',
+      icon: <FiShare2 size={16} className="text-blue-500" />,
+      action: () => {
+        const text = `Excited about ${event.title}! 🎉`;
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(window.location.href)}`, '_blank');
+        setShowShareMenu(false);
+      }
+    },
+    {
+      name: 'LinkedIn',
+      icon: <FiExternalLink size={16} className="text-blue-700" />,
+      action: () => {
+        window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.href)}`, '_blank');
+        setShowShareMenu(false);
+      }
+    }
+  ];
 
   const handleRegister = async () => {
     if (!user) {
@@ -244,13 +359,22 @@ export default function EventDetail() {
 
         {/* ── Hero Banner ── */}
         <div className="relative">
-          <div className="relative h-72 sm:h-[420px] w-full overflow-hidden bg-gray-200">
+          <div 
+            className="relative h-72 sm:h-[420px] w-full overflow-hidden bg-gray-200 cursor-pointer group"
+            onClick={() => event.image && setShowImageModal(true)}
+          >
             <img
               src={imageUrl}
               alt={event.title}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+            {event.image && (
+              <div className="absolute bottom-4 right-4 bg-black/50 backdrop-blur-sm text-white px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <FiMaximize size={12} />
+                View Full Size
+              </div>
+            )}
           </div>
 
           {/* Overlay content */}
@@ -459,12 +583,226 @@ export default function EventDetail() {
             {/* ── Right: Sidebar ── */}
             <div className="space-y-4">
 
+              {/* Owner Admin Panel (if logged-in user is the creator) */}
+              {user && event && event.createdBy?._id === user._id && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4 }}
+                  className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl border border-purple-200 p-6"
+                >
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center">
+                      <FiUser size={14} className="text-white" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-purple-900">You're the organizer</p>
+                      <p className="text-[10px] text-purple-600">Manage this event</p>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <button 
+                      onClick={() => navigate(`/dashboard/collegeadmin`)}
+                      className="w-full py-2.5 px-4 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium text-sm transition-all flex items-center justify-center gap-2"
+                    >
+                      <FiEdit size={14} />
+                      Manage Registrations
+                    </button>
+                  </div>
+                  
+                  {/* Quick stats */}
+                  <div className="mt-4 pt-4 border-t border-purple-200">
+                    <div className="grid grid-cols-2 gap-3 text-center">
+                      <div>
+                        <div className="text-xl font-bold text-purple-900">{event.currentParticipants || 0}</div>
+                        <div className="text-[10px] text-purple-600 font-medium">Registered</div>
+                      </div>
+                      <div>
+                        <div className="text-xl font-bold text-purple-900">
+                          {event.maxParticipants - (event.currentParticipants || 0)}
+                        </div>
+                        <div className="text-[10px] text-purple-600 font-medium">Available</div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Capacity Progress Bar */}
+              {status !== "Past" && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.05 }}
+                  className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6"
+                >
+                  <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                    <FiUsers size={16} /> Registration Status
+                  </h3>
+                  
+                  {/* Progress bar */}
+                  <div className="mb-3">
+                    <div className="flex justify-between text-xs text-gray-600 mb-1.5">
+                      <span>{event.currentParticipants || 0} registered</span>
+                      <span>{event.maxParticipants - (event.currentParticipants || 0)} spots left</span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full transition-all ${
+                          ((event.currentParticipants || 0) / event.maxParticipants) > 0.8 
+                            ? 'bg-red-500' 
+                            : ((event.currentParticipants || 0) / event.maxParticipants) > 0.5 
+                            ? 'bg-amber-500' 
+                            : 'bg-green-500'
+                        }`}
+                        style={{ width: `${((event.currentParticipants || 0) / event.maxParticipants) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Urgency badges */}
+                  {(event.currentParticipants || 0) >= event.maxParticipants && (
+                    <div className="text-center py-3 bg-red-50 rounded-xl border border-red-100">
+                      <p className="text-red-600 text-sm font-bold">🔴 Event Fully Booked</p>
+                    </div>
+                  )}
+                  
+                  {(event.currentParticipants || 0) >= event.maxParticipants * 0.8 && 
+                   (event.currentParticipants || 0) < event.maxParticipants && (
+                    <div className="flex items-center gap-2 text-xs font-semibold text-red-600 bg-red-50 px-3 py-2 rounded-lg">
+                      <FiAlertCircle size={14} />
+                      Almost Full - Only {event.maxParticipants - (event.currentParticipants || 0)} spots left!
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              {/* Countdown Timer for Upcoming Events */}
+              {status === 'Upcoming' && timeLeft && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.08 }}
+                  className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl border border-blue-200 p-6"
+                >
+                  <h3 className="text-sm font-bold text-blue-900 mb-4 text-center">
+                    Event Starts In
+                  </h3>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+                      <div className="text-2xl font-bold text-blue-600">{timeLeft.days}</div>
+                      <div className="text-xs text-gray-500 font-medium">Days</div>
+                    </div>
+                    <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+                      <div className="text-2xl font-bold text-blue-600">{timeLeft.hours}</div>
+                      <div className="text-xs text-gray-500 font-medium">Hours</div>
+                    </div>
+                    <div className="bg-white rounded-xl p-3 text-center shadow-sm">
+                      <div className="text-2xl font-bold text-blue-600">{timeLeft.minutes}</div>
+                      <div className="text-xs text-gray-500 font-medium">Mins</div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Registration Status Details (if student is registered) */}
+              {registered && registrationStatus && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.1 }}
+                  className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                      <FiCheckCircle size={16} className="text-green-500" />
+                      Your Registration
+                    </h3>
+                    <span className={`text-xs font-bold px-3 py-1 rounded-full ${
+                      registrationStatus.status === 'approved' 
+                        ? 'bg-green-100 text-green-700 border border-green-200' 
+                        : 'bg-amber-100 text-amber-700 border border-amber-200'
+                    }`}>
+                      {registrationStatus.status === 'approved' ? '✅ Approved' : '⏳ Pending'}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Registered on</span>
+                      <span className="font-semibold text-gray-900">
+                        {new Date(registrationStatus.createdAt).toLocaleDateString('en-IN', {
+                          day: 'numeric', month: 'short', year: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                    
+                    {registrationStatus.status === 'pending' && (
+                      <div className="mt-3 flex items-start gap-2 p-3 bg-amber-50 rounded-lg border border-amber-100">
+                        <FiClock size={14} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                        <p className="text-xs text-amber-700">
+                          Awaiting admin approval. You'll be notified once reviewed.
+                        </p>
+                      </div>
+                    )}
+                    
+                    {registrationStatus.status === 'approved' && (
+                      <div className="mt-3 flex items-start gap-2 p-3 bg-green-50 rounded-lg border border-green-100">
+                        <FiCheckCircle size={14} className="text-green-600 mt-0.5 flex-shrink-0" />
+                        <p className="text-xs text-green-700 font-medium">
+                          You're all set! See you at the event.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Rejection Status (if registration was rejected) */}
+              {!registered && registrationStatus && registrationStatus.status === 'rejected' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.1 }}
+                  className="bg-white rounded-2xl border border-red-200 shadow-sm p-6"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                      <FiAlertCircle size={16} className="text-red-500" />
+                      Previous Registration
+                    </h3>
+                    <span className="text-xs font-bold px-3 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">
+                      ❌ Rejected
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Registered on</span>
+                      <span className="font-semibold text-gray-900">
+                        {new Date(registrationStatus.createdAt).toLocaleDateString('en-IN', {
+                          day: 'numeric', month: 'short', year: 'numeric'
+                        })}
+                      </span>
+                    </div>
+                    
+                    <div className="mt-3 flex items-start gap-2 p-3 bg-red-50 rounded-lg border border-red-100">
+                      <FiAlertCircle size={14} className="text-red-600 mt-0.5 flex-shrink-0" />
+                      <p className="text-xs text-red-700 font-medium">
+                        Your registration was not approved. Contact the organizer for details.
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
               {/* Registration CTA */}
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: 0.1 }}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sticky top-24"
+                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6"
               >
                 {/* Status indicator */}
                 <div className={`flex items-center gap-2 mb-4 text-xs font-semibold px-3 py-2 rounded-lg border ${statusStyle.cls}`}>
@@ -548,29 +886,121 @@ export default function EventDetail() {
                   </button>
                 )}
 
-                {/* Share button */}
+                {/* Enhanced Share Menu */}
+                <div className="relative mt-3">
+                  <button
+                    onClick={() => setShowShareMenu(!showShareMenu)}
+                    className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:border-blue-600 hover:text-blue-600 font-semibold text-sm transition-all flex items-center justify-center gap-2"
+                  >
+                    <FiShare2 size={14} /> Share Event
+                  </button>
+                  
+                  {showShareMenu && (
+                    <>
+                      {/* Backdrop */}
+                      <div 
+                        className="fixed inset-0 z-10"
+                        onClick={() => setShowShareMenu(false)}
+                      />
+                      
+                      {/* Dropdown menu */}
+                      <div className="absolute bottom-full mb-2 left-0 right-0 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden z-20">
+                        {shareOptions.map((option, idx) => (
+                          <button
+                            key={idx}
+                            onClick={option.action}
+                            className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center gap-3 border-b border-gray-100 last:border-0"
+                          >
+                            <span>{option.icon}</span>
+                            <span className="text-sm font-medium text-gray-700">{option.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Add to Calendar */}
                 <button
-                  onClick={handleShare}
-                  className="w-full mt-3 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:border-blue-600 hover:text-blue-600 font-semibold text-sm transition-all flex items-center justify-center gap-2"
+                  onClick={addToCalendar}
+                  className="w-full mt-2 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:border-green-600 hover:text-green-600 font-semibold text-sm transition-all flex items-center justify-center gap-2"
                 >
-                  {copied
-                    ? <><FiCheckCircle size={14} className="text-green-500" /> Link Copied!</>
-                    : <><FiShare2 size={14} /> Share Event</>
-                  }
+                  <FiCalendar size={14} /> Add to Google Calendar
                 </button>
               </motion.div>
 
-              {/* Back to events */}
-              <button
-                onClick={() => navigate("/events")}
-                className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-500 hover:text-blue-600 hover:border-blue-200 font-medium text-sm transition-all flex items-center justify-center gap-2"
+              {/* Browse More Events - Separate Card */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.15 }}
               >
-                <FiExternalLink size={13} /> Browse More Events
-              </button>
+                <button
+                  onClick={() => navigate("/events")}
+                  className="w-full py-2.5 rounded-xl border border-gray-200 text-gray-500 hover:text-blue-600 hover:border-blue-200 font-medium text-sm transition-all flex items-center justify-center gap-2"
+                >
+                  <FiExternalLink size={13} /> Browse More Events
+                </button>
+              </motion.div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Sticky Header on Scroll */}
+      {isScrolled && (
+        <div className="fixed top-16 left-0 right-0 bg-white/95 backdrop-blur-sm border-b border-gray-200 z-40 py-3 px-4 shadow-sm transition-all">
+          <div className="max-w-5xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button 
+                onClick={() => navigate(-1)} 
+                className="text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <FiArrowLeft size={20} />
+              </button>
+              <h1 className="font-bold text-gray-900 truncate max-w-md text-sm sm:text-base">
+                {event.title}
+              </h1>
+              <span className={`hidden sm:inline-flex text-xs font-bold px-2.5 py-1 rounded-full border ${cat.badge}`}>
+                {cat.icon} {event.category}
+              </span>
+            </div>
+            {isStudent && !registered && status !== 'Past' && (
+              <button 
+                onClick={handleRegister}
+                disabled={registerLoading || (event.currentParticipants || 0) >= event.maxParticipants}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg text-sm font-semibold transition-all disabled:cursor-not-allowed"
+              >
+                {registerLoading ? 'Registering...' : 'Register'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Image Fullscreen Modal */}
+      {showImageModal && event.image && (
+        <div 
+          onClick={() => setShowImageModal(false)}
+          className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 cursor-pointer"
+        >
+          <img 
+            src={getImageUrl(event.image)} 
+            alt={event.title}
+            className="max-w-full max-h-full object-contain rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+          <button 
+            className="absolute top-4 right-4 text-white text-4xl hover:text-gray-300 transition-colors"
+            onClick={() => setShowImageModal(false)}
+          >
+            ×
+          </button>
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm bg-black/50 backdrop-blur-sm px-4 py-2 rounded-lg">
+            Click anywhere to close
+          </div>
+        </div>
+      )}
 
       <Footer />
     </>
