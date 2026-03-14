@@ -62,33 +62,48 @@ export const getEventRegistrations  = (eventId)   => API.get(`/registrations/eve
 export const getAllRegistrations     = ()          => API.get("/registrations/all");
 export const approveRegistration    = (id)        => API.put(`/registrations/approve/${id}`);
 export const rejectRegistration     = (id)        => API.put(`/registrations/reject/${id}`);
-export const getTotalRegistrations = () => API.get("/registrations/stats/total");
-export const getMyEventStudents = () => API.get("/registrations/my-students");
+export const getTotalRegistrations  = ()          => API.get("/registrations/stats/total");
+export const getMyEventStudents     = ()          => API.get("/registrations/my-students");
+
 // Export Registrations
-export const exportRegistrationsCSV = (eventId) => 
+export const exportRegistrationsCSV = (eventId) =>
   API.get(`/registrations/export/${eventId}/csv`, { responseType: "blob" });
 
-export const exportRegistrationsExcel = (eventId) => 
+export const exportRegistrationsExcel = (eventId) =>
   API.get(`/registrations/export/${eventId}/excel`, { responseType: "blob" });
 
-export const exportRegistrationsPDF = (eventId) => 
+export const exportRegistrationsPDF = (eventId) =>
   API.get(`/registrations/export/${eventId}/pdf`, { responseType: "blob" });
 
-export const exportRegistrationsJSON = (eventId) => 
+export const exportRegistrationsJSON = (eventId) =>
   API.get(`/registrations/export/${eventId}/json`, { responseType: "blob" });
 
 // Export All Registrations
-export const exportAllRegistrationsCSV = () => 
+export const exportAllRegistrationsCSV = () =>
   API.get(`/registrations/export-all/csv`, { responseType: "blob" });
 
-export const exportAllRegistrationsExcel = () => 
+export const exportAllRegistrationsExcel = () =>
   API.get(`/registrations/export-all/excel`, { responseType: "blob" });
 
-export const exportAllRegistrationsPDF = () => 
+export const exportAllRegistrationsPDF = () =>
   API.get(`/registrations/export-all/pdf`, { responseType: "blob" });
 
-export const exportAllRegistrationsJSON = () => 
+export const exportAllRegistrationsJSON = () =>
   API.get(`/registrations/export-all/json`, { responseType: "blob" });
+
+/* ================= QR ATTENDANCE APIs ================= */
+
+// Student: get signed QR payload for a specific approved registration
+export const getRegistrationQR      = (registrationId) =>
+  API.get(`/registrations/${registrationId}/qr`);
+
+// Admin: post a scanned QR payload to mark attendance
+export const scanAttendanceQR       = (qrPayload) =>
+  API.post("/registrations/scan", { qrPayload });
+
+// Admin: get full attendance report for a specific event
+export const getEventAttendance     = (eventId) =>
+  API.get(`/registrations/attendance/${eventId}`);
 
 /* ================= CHAT API ================= */
 

@@ -17,8 +17,13 @@ import {
   exportAllRegistrationsPDF,
   exportAllRegistrationsJSON,
   getMyEventStudents,
-  
 } from "../controllers/registrationController.js";
+
+import {
+  getQRCode,
+  scanQR,
+  getEventAttendance,
+} from "../controllers/attendanceController.js";
 
 import { verifyToken, authorizeRoles } from "../middleware/authmiddleware.js";
 
@@ -54,12 +59,13 @@ router.delete(
   cancelRegistration
 );
 
-// Get ALL registrations for all of admin's events — single efficient query
+// Get QR code for a specific approved registration (student only)
+// IMPORTANT: this route must stay BEFORE any /:id wildcard patterns
 router.get(
-  "/all",
+  "/:id/qr",
   verifyToken,
-  authorizeRoles("college_admin"),
-  getAllRegistrations
+  authorizeRoles("student"),
+  getQRCode
 );
 
 /*
@@ -67,6 +73,30 @@ router.get(
 🏫 COLLEGE ADMIN ROUTES
 ========================================
 */
+
+// Scan a QR code to mark attendance
+router.post(
+  "/scan",
+  verifyToken,
+  authorizeRoles("college_admin"),
+  scanQR
+);
+
+// Get attendance report for a specific event
+router.get(
+  "/attendance/:eventId",
+  verifyToken,
+  authorizeRoles("college_admin"),
+  getEventAttendance
+);
+
+// Get ALL registrations for all of admin's events — single efficient query
+router.get(
+  "/all",
+  verifyToken,
+  authorizeRoles("college_admin"),
+  getAllRegistrations
+);
 
 // Get all registrations for a specific event (admin's own events only)
 router.get(
@@ -91,6 +121,7 @@ router.put(
   authorizeRoles("college_admin"),
   rejectRegistration
 );
+
 // Get registration stats (public, for home page)
 router.get("/stats/total", getTotalRegistrations);
 

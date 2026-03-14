@@ -1,7 +1,7 @@
 // AdminDashboard.jsx
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getMyEvents, createEvent, updateEvent, deleteEvent, getImageUrl, getEventRegistrations, getAllRegistrations, approveRegistration, rejectRegistration, getAllUsers, getMyEventStudents, exportRegistrationsCSV, exportRegistrationsExcel, exportRegistrationsPDF, exportRegistrationsJSON, exportAllRegistrationsCSV, exportAllRegistrationsExcel, exportAllRegistrationsPDF, exportAllRegistrationsJSON } from "../services/api";
+import { getMyEvents, createEvent, updateEvent, deleteEvent, getImageUrl, getEventRegistrations, getAllRegistrations, approveRegistration, rejectRegistration, getAllUsers, getMyEventStudents, exportRegistrationsCSV, exportRegistrationsExcel, exportRegistrationsPDF, exportRegistrationsJSON, exportAllRegistrationsCSV, exportAllRegistrationsExcel, exportAllRegistrationsPDF, exportAllRegistrationsJSON, getEventAttendance, scanAttendanceQR } from "../services/api";
 import Navbar from "../components/Navbar";
 import StatsCard from "../components/StatsCard";
 import Sidebar from "../components/Sidebar";
@@ -31,6 +31,14 @@ import {
   FiTag,
   FiInfo,
   FiDownload,
+  FiActivity,
+  FiCamera,
+  FiZap,
+  FiWifi,
+  FiSlash,
+  FiClock,
+  FiPercent,
+  FiUserCheck,
 } from "react-icons/fi";
 
 const EVENTS_PER_PAGE = 6;
@@ -130,6 +138,7 @@ export default function AdminDashboard() {
             { key: "users", label: "User Management", icon: <FiUsers /> },
             { key: "events", label: "Event Management", icon: <FiCalendar /> },
             { key: "registrations", label: "Registrations", icon: <FiCheckCircle /> },
+            { key: "attendance", label: "Attendance", icon: <FiActivity /> },
             { key: "logs", label: "Admin Logs", icon: <FiFileText /> },
           ]}
         />
@@ -149,6 +158,7 @@ export default function AdminDashboard() {
             {activeTab === "users" && <UserManagement />}
             {activeTab === "events" && <EventManagement />}
             {activeTab === "registrations" && <Registrations />}
+            {activeTab === "attendance" && <AttendanceSection />}
             {activeTab === "logs" && <AdminLogs />}
           </div>
         </main>
@@ -2088,6 +2098,843 @@ function Registrations() {
     </div>
   );
 }
+
+
+/* ================================================
+   ATTENDANCE SECTION
+================================================ */
+
+const NATIVE_SUPPORTED =
+  typeof window !== "undefined" &&
+  "BarcodeDetector" in window;
+
+const QR_SCANNER_STYLES = `
+  @keyframes qr-line {
+    0%,100% { top: 6px; opacity: .7; }
+    50%      { top: calc(100% - 8px); opacity: 1; }
+  }
+  @keyframes qr-flash { 0% { opacity:1; } 100% { opacity:0; } }
+  @keyframes qr-pop {
+    0%   { transform: scale(.4) rotate(-10deg); opacity:0; }
+    60%  { transform: scale(1.15) rotate(2deg); opacity:1; }
+    100% { transform: scale(1) rotate(0deg);    opacity:1; }
+  }
+  @keyframes qr-dot {
+    0%,100% { opacity:1; transform:scale(1); }
+    50%     { opacity:.3; transform:scale(.75); }
+  }
+  @keyframes qr-ring {
+    0%   { transform:scale(.85); opacity:.6; }
+    100% { transform:scale(1.7); opacity:0; }
+  }
+  @keyframes qr-slide-up {
+    from { opacity:0; transform:translateY(8px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+  @keyframes qr-shake {
+    0%,100% { transform:translateX(0); }
+    20%     { transform:translateX(-5px); }
+    40%     { transform:translateX(5px); }
+    60%     { transform:translateX(-3px); }
+    80%     { transform:translateX(3px); }
+  }
+  @keyframes qr-idle-float {
+    0%,100% { transform:translateY(0); }
+    50%     { transform:translateY(-5px); }
+  }
+  .qr-result-enter { animation: qr-slide-up .22s ease forwards; }
+  .qr-shake        { animation: qr-shake .38s ease; }
+`;
+
+function QRScannerCamera({ onScanned }) {
+  const wrapperRef    = useRef(null);
+  const isScanningRef = useRef(false);
+
+  const [started,    setStarted]    = useState(false);
+  const [camError,   setCamError]   = useState(null);
+  const [scanState,  setScanState]  = useState("idle");
+  const [torchOn,    setTorchOn]    = useState(false);
+  const [torchAvail, setTorchAvail] = useState(false);
+
+  const streamRef   = useRef(null);
+  const videoRef    = useRef(null);
+  const rafRef      = useRef(null);
+  const detectorRef = useRef(null);
+  const trackRef    = useRef(null);
+  const html5QrRef  = useRef(null);
+  const domId       = useRef("qr-" + Math.random().toString(36).slice(2, 8));
+
+  useEffect(() => {
+    if (wrapperRef.current) {
+      wrapperRef.current.__triggerError = () => {
+        setScanState("error");
+        setTimeout(() => setScanState("scanning"), 1400);
+      };
+    }
+  });
+
+  const stopScanner = useCallback(async () => {
+    isScanningRef.current = false;
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
+    if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
+    if (html5QrRef.current) {
+      try { await html5QrRef.current.stop(); } catch { /**/ }
+      try { html5QrRef.current.clear();      } catch { /**/ }
+      html5QrRef.current = null;
+    }
+    trackRef.current = null; detectorRef.current = null;
+    setStarted(false); setCamError(null); setScanState("idle");
+    setTorchOn(false); setTorchAvail(false);
+  }, []);
+
+  useEffect(() => () => { stopScanner(); }, [stopScanner]);
+
+  const handleScanned = useCallback((text) => {
+    if (isScanningRef.current) return;
+    isScanningRef.current = true;
+    setScanState("success");
+    onScanned(text);
+    setTimeout(() => { setScanState("scanning"); isScanningRef.current = false; }, 1000);
+  }, [onScanned]);
+
+  const toggleTorch = useCallback(async () => {
+    if (!trackRef.current) return;
+    try {
+      const next = !torchOn;
+      await trackRef.current.applyConstraints({ advanced: [{ torch: next }] });
+      setTorchOn(next);
+    } catch { /**/ }
+  }, [torchOn]);
+
+  // After setStarted(true), React re-renders and the <video> appears in the DOM.
+  // This effect fires after that render and wires srcObject + starts the scan loop.
+  const pendingStreamRef = useRef(null);
+  useEffect(() => {
+    if (!started || !NATIVE_SUPPORTED || !pendingStreamRef.current) return;
+    const stream = pendingStreamRef.current;
+    pendingStreamRef.current = null;
+    const video = videoRef.current;
+    if (!video) { stopScanner(); return; }
+    video.srcObject = stream;
+    video.play().catch(() => {});
+    let detector;
+    try { detector = new window.BarcodeDetector({ formats: ["qr_code"] }); }
+    catch { stopScanner(); startFallback(); return; }
+    detectorRef.current = detector;
+    const tick = async () => {
+      if (!detectorRef.current || !videoRef.current) return;
+      try {
+        if (videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+          const codes = await detectorRef.current.detect(videoRef.current);
+          if (codes.length > 0 && codes[0].rawValue) handleScanned(codes[0].rawValue);
+        }
+      } catch { /**/ }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+  }, [started]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const startNative = useCallback(async () => {
+    setCamError(null);
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+    } catch (err) {
+      const name = err?.name || "";
+      if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+        setCamError("Camera permission denied. Allow camera access in your browser settings, then try again.");
+      } else if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+        setCamError("No camera detected on this device.");
+      } else if (name === "NotReadableError" || name === "TrackStartError") {
+        setCamError("Camera is in use by another app. Close it and try again.");
+      } else if (name === "OverconstrainedError") {
+        try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }); }
+        catch (e2) { setCamError("Could not access camera: " + (e2?.message || e2?.name || "Unknown error")); return; }
+      } else {
+        setCamError("Could not start camera: " + (err?.message || err?.name || "Unknown error"));
+        return;
+      }
+      if (!stream) return;
+    }
+    streamRef.current = stream;
+    const track = stream.getVideoTracks()[0];
+    trackRef.current = track;
+    const caps = track.getCapabilities?.() || {};
+    if (caps.torch) setTorchAvail(true);
+    // Store stream so the useEffect above can wire it after React renders the <video>
+    pendingStreamRef.current = stream;
+    setStarted(true);
+    setScanState("scanning");
+  }, [handleScanned, stopScanner]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const startFallback = useCallback(async () => {
+    setCamError(null); isScanningRef.current = false;
+    if (html5QrRef.current) {
+      try { await html5QrRef.current.stop(); } catch { /**/ }
+      try { html5QrRef.current.clear();      } catch { /**/ }
+      html5QrRef.current = null;
+    }
+    let Html5Qrcode;
+    try { const mod = await import("html5-qrcode"); Html5Qrcode = mod.Html5Qrcode; }
+    catch { setCamError("QR library failed to load. Try refreshing."); return; }
+    setStarted(true); setScanState("scanning");
+    try {
+      const scanner = new Html5Qrcode(domId.current, { verbose: false });
+      html5QrRef.current = scanner;
+      await scanner.start(
+        { facingMode: "environment" },
+        { fps: 25, qrbox: { width: 250, height: 250 }, disableFlip: true },
+        (text) => handleScanned(text),
+        () => { /**/ }
+      );
+    } catch (err) {
+      setStarted(false); setScanState("idle"); html5QrRef.current = null;
+      const name = err?.name || ""; const msg = (err?.message || "").toLowerCase();
+      if (name === "NotAllowedError" || msg.includes("permission") || msg.includes("notallowed")) {
+        setCamError("Camera permission denied. Allow camera access in your browser settings, then try again.");
+      } else if (name === "NotFoundError" || msg.includes("notfound")) {
+        setCamError("No camera detected on this device.");
+      } else {
+        setCamError("Could not start camera: " + (err?.message || err?.name || "Unknown error"));
+      }
+    }
+  }, [handleScanned]);
+
+  const startScanner = useCallback(() => {
+    NATIVE_SUPPORTED ? startNative() : startFallback();
+  }, [startNative, startFallback]);
+
+  const overlayColor = { scanning:"#3b82f6", success:"#22c55e", error:"#ef4444", idle:"#3b82f6" }[scanState];
+  const flashBg      = { success:"rgba(34,197,94,.15)", error:"rgba(239,68,68,.15)" }[scanState] || "transparent";
+
+  const ScanOverlay = (
+    <div style={{ position:"absolute", inset:0, pointerEvents:"none", display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ position:"relative", width:"clamp(180px,55vmin,250px)", height:"clamp(180px,55vmin,250px)" }}>
+        {/* Dimmed surround */}
+        <div style={{ position:"absolute", inset:0, boxShadow:"0 0 0 9999px rgba(0,0,0,0.55)", borderRadius:6 }} />
+        {/* Corner brackets */}
+        {[
+          { top:0,    left:0,    borderTop:`3px solid ${overlayColor}`,    borderLeft:`3px solid ${overlayColor}`,    borderRadius:"6px 0 0 0" },
+          { top:0,    right:0,   borderTop:`3px solid ${overlayColor}`,    borderRight:`3px solid ${overlayColor}`,   borderRadius:"0 6px 0 0" },
+          { bottom:0, left:0,    borderBottom:`3px solid ${overlayColor}`, borderLeft:`3px solid ${overlayColor}`,    borderRadius:"0 0 0 6px" },
+          { bottom:0, right:0,   borderBottom:`3px solid ${overlayColor}`, borderRight:`3px solid ${overlayColor}`,   borderRadius:"0 0 6px 0" },
+        ].map((s, i) => <div key={i} style={{ position:"absolute", width:32, height:32, ...s }} />)}
+        {/* Scan line */}
+        {scanState === "scanning" && (
+          <div style={{
+            position:"absolute", left:8, right:8, height:2,
+            background:`linear-gradient(90deg,transparent,${overlayColor},transparent)`,
+            borderRadius:1, animation:"qr-line 1.6s ease-in-out infinite",
+          }} />
+        )}
+        {/* Pulse rings on scanning */}
+        {scanState === "scanning" && (
+          <>
+            <div style={{ position:"absolute", inset:-8, border:`1.5px solid ${overlayColor}`, borderRadius:10, opacity:.35, animation:"qr-ring 2s ease-out infinite" }} />
+            <div style={{ position:"absolute", inset:-8, border:`1.5px solid ${overlayColor}`, borderRadius:10, opacity:.35, animation:"qr-ring 2s ease-out infinite .7s" }} />
+          </>
+        )}
+        {/* Flash on success/error */}
+        {(scanState === "success" || scanState === "error") && (
+          <div style={{ position:"absolute", inset:0, background:flashBg, border:`2px solid ${overlayColor}`, borderRadius:6, animation:"qr-flash 1s ease-out forwards" }} />
+        )}
+        {/* Success tick */}
+        {scanState === "success" && (
+          <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <div style={{ width:56, height:56, borderRadius:"50%", background:"#22c55e", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", animation:"qr-pop .45s cubic-bezier(.34,1.56,.64,1) forwards" }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+          </div>
+        )}
+        {/* Error X */}
+        {scanState === "error" && (
+          <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <div style={{ width:56, height:56, borderRadius:"50%", background:"#ef4444", display:"flex", alignItems:"center", justifyContent:"center", color:"#fff", animation:"qr-pop .45s cubic-bezier(.34,1.56,.64,1) forwards" }}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div ref={wrapperRef}>
+      <style>{QR_SCANNER_STYLES}</style>
+      {/* css override for html5-qrcode injected video */}
+      <style>{`
+        #${domId.current} video{width:100%!important;max-width:100%!important;height:auto!important;max-height:60vh!important;object-fit:cover!important;display:block!important;border-radius:0!important;}
+        #${domId.current} canvas,#${domId.current} img,#${domId.current} button,#${domId.current} select,#${domId.current} span[id],#${domId.current} a{display:none!important;}
+      `}</style>
+
+      {/*
+        IMPORTANT: Both the <video> (native path) and the html5-qrcode <div> (fallback
+        path) must be in the DOM at all times so their refs/ids are valid when the
+        async camera start functions run. We toggle visibility via the wrapper below.
+      */}
+
+      {/* ── Scanner viewport — always rendered, hidden until started ── */}
+      <div style={{ display: started ? "block" : "none" }}>
+        <div style={{ position:"relative", width:"100%", borderRadius:14, overflow:"hidden", background:"#0a0a0a", aspectRatio:"4/3", maxHeight:"60vh" }}>
+
+          {/* Native path video — single element, single ref */}
+          <video
+            ref={videoRef}
+            muted playsInline
+            style={{
+              position:"absolute", inset:0, width:"100%", height:"100%",
+              objectFit:"cover",
+              display: NATIVE_SUPPORTED ? "block" : "none",
+            }}
+          />
+
+          {/* Fallback path — html5-qrcode injects video here */}
+          <div
+            id={domId.current}
+            style={{
+              position:"absolute", inset:0,
+              display: NATIVE_SUPPORTED ? "none" : "block",
+            }}
+          />
+          {ScanOverlay}
+
+          {/* Top-right controls overlay */}
+          <div style={{ position:"absolute", top:10, right:10, display:"flex", flexDirection:"column", gap:6, zIndex:10 }}>
+            {torchAvail && (
+              <button
+                onClick={toggleTorch}
+                title={torchOn ? "Torch off" : "Torch on"}
+                style={{
+                  width:36, height:36, borderRadius:"50%", border:"none", cursor:"pointer",
+                  background: torchOn ? "rgba(250,204,21,.9)" : "rgba(255,255,255,.15)",
+                  backdropFilter:"blur(4px)",
+                  display:"flex", alignItems:"center", justifyContent:"center",
+                  transition:"background .2s",
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill={torchOn ? "#713f12" : "#fff"} stroke="none">
+                  <path d="M9 2h6l-1 7h-4L9 2zm-1 7h8l-5 13-3-8H8V9zm5 0v8l2-5h-2z"/>
+                </svg>
+              </button>
+            )}
+            <button
+              onClick={stopScanner}
+              title="Stop scanner"
+              style={{
+                width:36, height:36, borderRadius:"50%", border:"none", cursor:"pointer",
+                background:"rgba(255,255,255,.15)", backdropFilter:"blur(4px)",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                transition:"background .2s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background="rgba(239,68,68,.7)"}
+              onMouseLeave={e => e.currentTarget.style.background="rgba(255,255,255,.15)"}
+            >
+              <FiX size={15} color="#fff" />
+            </button>
+          </div>
+        </div>
+
+        {/* Status bar */}
+        <div className="flex items-center justify-between mt-3 px-1">
+          <div className="flex items-center gap-2">
+            <span style={{
+              width:8, height:8, borderRadius:"50%", background:overlayColor, display:"inline-block", flexShrink:0,
+              animation: scanState==="scanning" ? "qr-dot 1.1s ease-in-out infinite" : "none",
+            }} />
+            <span className="text-xs text-gray-500 font-medium">
+              {scanState === "scanning" && (NATIVE_SUPPORTED ? "Native scanner active — hold steady" : "Library scanner active — hold steady")}
+              {scanState === "success"  && <span className="text-green-600 font-semibold">Scanned successfully</span>}
+              {scanState === "error"    && <span className="text-red-500 font-semibold">Scan failed — try again</span>}
+            </span>
+          </div>
+          {NATIVE_SUPPORTED && (
+            <span className="inline-flex items-center gap-1 text-xs text-blue-500 font-medium bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+              <FiZap size={10} /> Fast
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* ── Idle state ── */}
+      {!started && !camError && (
+        <div className="flex flex-col items-center justify-center gap-5 py-12 px-4 rounded-2xl border-2 border-dashed border-gray-200 bg-gray-50/60">
+          {/* Animated camera icon */}
+          <div className="relative">
+            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-200" style={{ animation:"qr-idle-float 3s ease-in-out infinite" }}>
+              <FiCamera size={32} color="#fff" />
+            </div>
+            {/* Ping rings */}
+            <div className="absolute inset-0 rounded-2xl border-2 border-blue-400 opacity-0" style={{ animation:"qr-ring 2.5s ease-out infinite" }} />
+            <div className="absolute inset-0 rounded-2xl border-2 border-blue-400 opacity-0" style={{ animation:"qr-ring 2.5s ease-out infinite 1.2s" }} />
+            {NATIVE_SUPPORTED && (
+              <span className="absolute -top-2 -right-2 inline-flex items-center gap-0.5 bg-green-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full shadow">
+                <FiZap size={9} /> Fast
+              </span>
+            )}
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-semibold text-gray-700">Ready to scan</p>
+            <p className="text-xs text-gray-400 mt-1 max-w-xs">
+              {NATIVE_SUPPORTED
+                ? "Using native BarcodeDetector — sub-200ms scan speed"
+                : "Point camera at student's QR code to mark attendance"}
+            </p>
+          </div>
+          <button
+            onClick={startScanner}
+            className="flex items-center gap-2 px-7 py-3 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-blue-200"
+          >
+            <FiCamera size={16} /> Open Camera
+          </button>
+        </div>
+      )}
+
+      {/* ── Error state ── */}
+      {camError && (
+        <div className="flex flex-col items-center gap-4 py-10 px-5 rounded-2xl border border-red-100 bg-red-50 text-center qr-result-enter">
+          <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center">
+            <FiAlertCircle size={26} className="text-red-500" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-red-700 mb-0.5">Camera error</p>
+            <p className="text-xs text-red-500 max-w-xs">{camError}</p>
+          </div>
+          <button
+            onClick={startScanner}
+            className="flex items-center gap-2 px-5 py-2 rounded-xl bg-red-600 hover:bg-red-700 active:scale-95 text-white text-xs font-semibold transition-all"
+          >
+            <FiCamera size={13} /> Try Again
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AttendanceSection() {
+  const [events,          setEvents]          = useState([]);
+  const [selectedEventId, setSelectedEventId] = useState("");
+  const [attendance,      setAttendance]      = useState(null);
+  const [loadingEvents,   setLoadingEvents]   = useState(true);
+  const [loadingReport,   setLoadingReport]   = useState(false);
+  const [scanMode,        setScanMode]        = useState("camera");
+  const [manualInput,     setManualInput]     = useState("");
+  const [submitting,      setSubmitting]      = useState(false);
+  const [scanResult,      setScanResult]      = useState(null);
+  const [search,          setSearch]          = useState("");
+  const [attendedFilter,  setAttendedFilter]  = useState("all");
+  const [exporting,       setExporting]       = useState(false);
+  const scannerWrapperRef = useRef(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data } = await getMyEvents();
+        setEvents(data);
+        if (data.length > 0) setSelectedEventId(data[0]._id);
+      } catch { /**/ } finally { setLoadingEvents(false); }
+    };
+    load();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedEventId) { setAttendance(null); return; }
+    const load = async () => {
+      try {
+        setLoadingReport(true); setAttendance(null);
+        const { data } = await getEventAttendance(selectedEventId);
+        setAttendance(data);
+      } catch { setAttendance(null); } finally { setLoadingReport(false); }
+    };
+    load();
+  }, [selectedEventId]);
+
+  const processPayload = useCallback(async (payload) => {
+    const trimmed = payload?.trim();
+    if (!trimmed) return;
+    try {
+      setSubmitting(true); setScanResult(null);
+      const { data } = await scanAttendanceQR(trimmed);
+      setScanResult({ success: true, ...data });
+      setManualInput("");
+      setAttendance((prev) => {
+        if (!prev) return prev;
+        const alreadyAttended = prev.registrations.some(
+          (r) => r.student?.email === data.student?.email && r.attended
+        );
+        return {
+          ...prev,
+          totalAttended: alreadyAttended ? prev.totalAttended : prev.totalAttended + 1,
+          registrations: prev.registrations.map((r) =>
+            r.student?.email === data.student?.email
+              ? { ...r, attended: true, attendedAt: data.attendedAt }
+              : r
+          ),
+        };
+      });
+    } catch (err) {
+      setScanResult({ success: false, message: err.response?.data?.message || "Scan failed. Please try again." });
+      if (scannerWrapperRef.current?.__triggerError) scannerWrapperRef.current.__triggerError();
+    } finally { setSubmitting(false); }
+  }, []);
+
+  const handleExport = async () => {
+    if (!attendance) return;
+    try {
+      setExporting(true);
+      const rows = [
+        ["Student Name", "Email", "College", "Attended", "Attended At"],
+        ...attendance.registrations.map((r) => [
+          r.student?.name || "", r.student?.email || "", r.student?.college || "",
+          r.attended ? "Yes" : "No",
+          r.attendedAt ? new Date(r.attendedAt).toLocaleString("en-IN") : "",
+        ]),
+      ];
+      const csv  = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g,'""')}"`).join(",")).join("\n");
+      const blob = new Blob([csv], { type:"text/csv" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href = url;
+      a.download = `attendance_${attendance.eventTitle.replace(/\s+/g,"_")}_${Date.now()}.csv`;
+      document.body.appendChild(a); a.click(); a.parentNode.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch { /**/ } finally { setExporting(false); }
+  };
+
+  const filteredRows = (attendance?.registrations || []).filter((r) => {
+    const matchSearch = !search
+      || r.student?.name?.toLowerCase().includes(search.toLowerCase())
+      || r.student?.email?.toLowerCase().includes(search.toLowerCase());
+    const matchFilter = attendedFilter === "all"
+      || (attendedFilter === "attended" && r.attended)
+      || (attendedFilter === "absent"   && !r.attended);
+    return matchSearch && matchFilter;
+  });
+
+  const attendedPct = attendance && attendance.totalApproved > 0
+    ? Math.round((attendance.totalAttended / attendance.totalApproved) * 100) : 0;
+
+  return (
+    <div className="space-y-5">
+
+      {/* ── Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800">Attendance</h3>
+          <p className="text-sm text-gray-400 mt-0.5">Scan student QR codes and track event attendance</p>
+        </div>
+        {attendance && (
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 active:scale-95 text-white text-sm font-semibold rounded-xl transition-all shadow-sm shadow-emerald-200 self-start sm:self-auto"
+          >
+            {exporting
+              ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              : <FiDownload size={15} />}
+            Export CSV
+          </button>
+        )}
+      </div>
+
+      {/* ── Event Selector ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5">
+        <label className="block text-xs font-semibold text-gray-400 uppercase tracking-widest mb-2.5">
+          Select event
+        </label>
+        {loadingEvents ? (
+          <div className="h-10 bg-gray-100 rounded-xl animate-pulse w-full sm:w-80" />
+        ) : events.length === 0 ? (
+          <p className="text-sm text-gray-400">No events found. Create an event first.</p>
+        ) : (
+          <select
+            value={selectedEventId}
+            onChange={(e) => setSelectedEventId(e.target.value)}
+            className="w-full sm:w-96 text-sm border border-gray-200 rounded-xl px-3.5 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-600/20 bg-white text-gray-800 font-medium transition-all"
+          >
+            {events.map((ev) => (
+              <option key={ev._id} value={ev._id}>{ev.title}</option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {/* ── QR Scan Panel ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        {/* Panel header */}
+        <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-gray-50">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-sm shadow-blue-200">
+              <FiCamera size={15} color="#fff" />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-gray-800">QR Scanner</h4>
+              <p className="text-xs text-gray-400 hidden sm:block">Camera or manual paste</p>
+            </div>
+          </div>
+          {/* Mode toggle */}
+          <div className="flex items-center bg-gray-100 rounded-xl p-1 gap-1">
+            {[
+              { key:"camera", icon:<FiCamera size={12}/>, label:"Camera" },
+              { key:"manual", icon:<FiType size={12}/>, label:"Manual" },
+            ].map(({ key, icon, label }) => (
+              <button
+                key={key}
+                onClick={() => { setScanMode(key); setScanResult(null); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                  scanMode === key
+                    ? "bg-white shadow text-blue-600"
+                    : "text-gray-400 hover:text-gray-600"
+                }`}
+              >
+                {icon}
+                <span className="hidden xs:inline sm:inline">{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-4 sm:p-5">
+          {/* Camera mode */}
+          {scanMode === "camera" && (
+            <div ref={scannerWrapperRef}>
+              <QRScannerCamera onScanned={processPayload} />
+            </div>
+          )}
+
+          {/* Manual mode */}
+          {scanMode === "manual" && (
+            <div className="space-y-3">
+              <p className="text-xs text-gray-400">
+                Paste the QR payload or use a USB QR scanner (acts as keyboard input), then press Enter or click Mark Attended.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input
+                  type="text"
+                  value={manualInput}
+                  onChange={(e) => { setManualInput(e.target.value); setScanResult(null); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") processPayload(manualInput); }}
+                  placeholder="Paste QR payload here…"
+                  className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-800 placeholder-gray-300 outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-500 font-mono transition-all"
+                  autoComplete="off" spellCheck={false} autoFocus
+                />
+                <button
+                  onClick={() => processPayload(manualInput)}
+                  disabled={submitting || !manualInput.trim()}
+                  className="flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 active:scale-95 text-white text-sm font-semibold rounded-xl transition-all whitespace-nowrap shadow-sm shadow-blue-200"
+                >
+                  {submitting
+                    ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Verifying…</>
+                    : <><FiUserCheck size={15} /> Mark Attended</>}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Scan result feedback */}
+          {scanResult && (
+            <div className={`mt-4 flex items-start gap-3 px-4 py-3.5 rounded-xl border text-sm qr-result-enter ${
+              scanResult.success
+                ? "bg-green-50 border-green-200 text-green-800"
+                : "bg-red-50 border-red-200 text-red-700"
+            }`}>
+              <div className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center mt-0.5 ${
+                scanResult.success ? "bg-green-200" : "bg-red-200"
+              }`}>
+                {scanResult.success
+                  ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#991b1b" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                }
+              </div>
+              <div className="flex-1 min-w-0">
+                {scanResult.success ? (
+                  <>
+                    <p className="font-semibold leading-snug">{scanResult.student?.name} marked as attended</p>
+                    <p className="text-xs mt-0.5 opacity-70 truncate">{scanResult.event?.title} · {scanResult.student?.email}</p>
+                  </>
+                ) : (
+                  <p className="font-medium leading-snug">{scanResult.message}</p>
+                )}
+              </div>
+              <button onClick={() => setScanResult(null)} className="flex-shrink-0 opacity-40 hover:opacity-80 transition mt-0.5">
+                <FiX size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Stats Bar ── */}
+      {attendance && !loadingReport && (
+        <div className="grid grid-cols-3 gap-3 sm:gap-4">
+          {/* Approved */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3.5 sm:p-4 flex items-center gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
+              <FiUsers size={16} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-lg sm:text-xl font-bold text-gray-800 leading-none">{attendance.totalApproved}</p>
+              <p className="text-xs text-gray-400 mt-0.5">Approved</p>
+            </div>
+          </div>
+          {/* Attended */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3.5 sm:p-4 flex items-center gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 flex-shrink-0">
+              <FiUserCheck size={16} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-lg sm:text-xl font-bold text-gray-800 leading-none">{attendance.totalAttended}</p>
+              <p className="text-xs text-gray-400 mt-0.5">Attended</p>
+            </div>
+          </div>
+          {/* Rate */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3.5 sm:p-4">
+            <div className="flex justify-between items-center mb-2">
+              <p className="text-xs text-gray-400 font-medium">Rate</p>
+              <p className="text-xs font-bold text-gray-700">{attendedPct}%</p>
+            </div>
+            <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-1.5 rounded-full bg-emerald-500 transition-all duration-700"
+                style={{ width:`${attendedPct}%` }}
+              />
+            </div>
+            <p className="text-xs text-gray-400 mt-1.5 truncate">
+              {attendance.totalApproved - attendance.totalAttended} absent
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Attendance Table ── */}
+      {loadingReport ? (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {[1,2,3,4].map((i) => (
+            <div key={i} className="flex items-center gap-3 px-4 sm:px-6 py-4 border-b border-gray-50 animate-pulse">
+              <div className="w-9 h-9 rounded-full bg-gray-100 flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 bg-gray-100 rounded w-1/3" />
+                <div className="h-2.5 bg-gray-100 rounded w-2/5" />
+              </div>
+              <div className="h-6 w-20 bg-gray-100 rounded-full" />
+            </div>
+          ))}
+        </div>
+      ) : attendance ? (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* Controls */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-gray-100">
+            <div className="relative flex-1">
+              <FiSearch size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300" />
+              <input
+                type="text"
+                placeholder="Search name or email…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-8 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-500 bg-gray-50 transition-all"
+              />
+              {search && (
+                <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition">
+                  <FiX size={13} />
+                </button>
+              )}
+            </div>
+            <div className="flex gap-1.5">
+              {[
+                { value:"all",      label:"All",      count: attendance.registrations.length },
+                { value:"attended", label:"Present",  count: attendance.totalAttended },
+                { value:"absent",   label:"Absent",   count: attendance.totalApproved - attendance.totalAttended },
+              ].map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => setAttendedFilter(f.value)}
+                  className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold border transition-all ${
+                    attendedFilter === f.value
+                      ? "bg-blue-600 text-white border-blue-600 shadow-sm shadow-blue-200"
+                      : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
+                  }`}
+                >
+                  {f.label}
+                  <span className={`ml-0.5 text-xs px-1.5 py-0.5 rounded-full font-bold ${
+                    attendedFilter === f.value ? "bg-white/20 text-white" : "bg-gray-100 text-gray-400"
+                  }`}>{f.count}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Rows */}
+          {filteredRows.length === 0 ? (
+            <div className="py-14 text-center">
+              <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                <FiUsers size={20} className="text-gray-300" />
+              </div>
+              <p className="text-sm text-gray-400">No results match your filters</p>
+            </div>
+          ) : (
+            filteredRows.map((row, i) => (
+              <div
+                key={row.registrationId || i}
+                className="flex items-center justify-between gap-3 px-4 sm:px-6 py-3.5 border-b border-gray-50 last:border-b-0 hover:bg-gray-50/50 transition-colors"
+              >
+                {/* Avatar + info */}
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 transition-colors ${
+                    row.attended ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-400"
+                  }`}>
+                    {row.student?.name?.charAt(0)?.toUpperCase() || "?"}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 truncate leading-snug">{row.student?.name || "Unknown"}</p>
+                    <p className="text-xs text-gray-400 truncate">{row.student?.email}</p>
+                  </div>
+                </div>
+
+                {/* Attended at — desktop only */}
+                <div className="hidden lg:block flex-shrink-0 text-right">
+                  {row.attended && row.attendedAt ? (
+                    <p className="text-xs text-gray-400">
+                      {new Date(row.attendedAt).toLocaleString("en-IN", {
+                        day:"numeric", month:"short", hour:"2-digit", minute:"2-digit", hour12:true,
+                      })}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-gray-200">—</p>
+                  )}
+                </div>
+
+                {/* Status badge */}
+                <div className="flex-shrink-0">
+                  {row.attended ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Present
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-400 border border-gray-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                      Absent
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      ) : !loadingEvents && selectedEventId ? (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
+          <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+            <FiAlertCircle size={20} className="text-gray-300" />
+          </div>
+          <p className="text-sm text-gray-400">Could not load attendance data for this event.</p>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 
 /* ================================================
    ADMIN LOGS

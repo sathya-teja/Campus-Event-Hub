@@ -2,12 +2,14 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import { FiGrid, FiList } from "react-icons/fi";
-import { Calendar, Clock, MapPin, X, SlidersHorizontal, Check, AlertTriangle } from "lucide-react";
+import { Calendar, Clock, MapPin, X, SlidersHorizontal, Check, AlertTriangle, QrCode, Download } from "lucide-react";
+import QRCodeLib from "qrcode";
 
 import {
   getMyRegistrations,
   cancelRegistration,
   getImageUrl,
+  getRegistrationQR,
 } from "../services/api";
 
 import EventCard from "../components/EventCard";
@@ -59,6 +61,9 @@ export default function MyRegistrations() {
   const [sheetOpen, setSheetOpen]           = useState(false);
   const [confirmId, setConfirmId]           = useState(null); // id to cancel, null = modal closed
   const [cancelling, setCancelling]         = useState(false);
+  const [qrModal, setQrModal]               = useState(null);   // { regId, eventTitle } | null
+  const [qrDataUrl, setQrDataUrl]           = useState(null);   // rendered PNG data URL
+  const [qrLoading, setQrLoading]           = useState(false);
 
   const activeFilterCount =
     (statusFilter !== "all" ? 1 : 0) + (categoryFilter !== "all" ? 1 : 0);
@@ -93,6 +98,39 @@ export default function MyRegistrations() {
     } finally {
       setCancelling(false);
     }
+  };
+
+  /* ---------------- QR CODE ---------------- */
+  const openQR = async (regId, eventTitle) => {
+    setQrModal({ regId, eventTitle });
+    setQrDataUrl(null);
+    setQrLoading(true);
+    try {
+      const { data } = await getRegistrationQR(regId);
+      // Render the signed JWT payload as a QR PNG using the qrcode library
+      const url = await QRCodeLib.toDataURL(data.qrPayload, {
+        errorCorrectionLevel: "M",
+        margin: 2,
+        width: 300,
+        color: { dark: "#111827", light: "#ffffff" },
+      });
+      setQrDataUrl(url);
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to load QR code");
+      setQrModal(null);
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
+  const closeQR = () => { setQrModal(null); setQrDataUrl(null); };
+
+  const downloadQR = () => {
+    if (!qrDataUrl || !qrModal) return;
+    const a = document.createElement("a");
+    a.href = qrDataUrl;
+    a.download = `qr_${qrModal.eventTitle.replace(/\s+/g, "_")}.png`;
+    a.click();
   };
 
   /* ---------------- FILTER ---------------- */
@@ -221,6 +259,65 @@ export default function MyRegistrations() {
                 }
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── QR CODE MODAL ── */}
+      {qrModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={closeQR}
+          />
+          {/* Modal */}
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-xs p-6 z-10 flex flex-col items-center">
+            {/* Close */}
+            <button
+              onClick={closeQR}
+              className="absolute top-4 right-4 p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-700 transition"
+            >
+              <X size={16} />
+            </button>
+
+            {/* Header */}
+            <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mb-3">
+              <QrCode size={22} className="text-blue-600" />
+            </div>
+            <h4 className="text-base font-semibold text-gray-900 text-center mb-0.5">
+              Your Event QR
+            </h4>
+            <p className="text-xs text-gray-400 text-center mb-5 px-2 line-clamp-2">
+              {qrModal.eventTitle}
+            </p>
+
+            {/* QR image area */}
+            <div className="w-56 h-56 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center mb-5 overflow-hidden">
+              {qrLoading ? (
+                <div className="flex flex-col items-center gap-2 text-gray-400">
+                  <span className="w-8 h-8 border-2 border-gray-200 border-t-blue-500 rounded-full animate-spin" />
+                  <span className="text-xs">Generating…</span>
+                </div>
+              ) : qrDataUrl ? (
+                <img src={qrDataUrl} alt="QR Code" className="w-full h-full object-contain p-1" />
+              ) : null}
+            </div>
+
+            {/* Info note */}
+            <p className="text-[11px] text-gray-400 text-center mb-5 leading-relaxed px-2">
+              Show this to the event organiser at the venue. Valid for 24 hours from generation.
+            </p>
+
+            {/* Download button */}
+            <button
+              onClick={downloadQR}
+              disabled={!qrDataUrl}
+              className="flex items-center gap-2 w-full justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-semibold rounded-xl transition"
+            >
+              <Download size={15} />
+              Download QR
+            </button>
           </div>
         </div>
       )}
@@ -354,13 +451,23 @@ export default function MyRegistrations() {
             const event = reg.eventId;
             if (!event) return null;
             return (
-              <EventCard
-                key={reg._id}
-                event={{ ...event, image: getImageUrl(event.image) }}
-                index={i}
-                registration={reg}
-                onCancel={handleCancel}
-              />
+              <div key={reg._id} className="relative flex flex-col">
+                <EventCard
+                  event={{ ...event, image: getImageUrl(event.image) }}
+                  index={i}
+                  registration={reg}
+                  onCancel={handleCancel}
+                />
+                {reg.status === "approved" && (
+                  <button
+                    onClick={() => openQR(reg._id, event.title)}
+                    className="mt-2 flex items-center justify-center gap-1.5 w-full py-2 rounded-xl border border-blue-200 bg-blue-50 text-blue-600 text-xs font-semibold hover:bg-blue-100 hover:border-blue-300 transition"
+                  >
+                    <QrCode size={13} />
+                    Show QR Code
+                  </button>
+                )}
+              </div>
             );
           })}
         </div>
@@ -441,12 +548,22 @@ export default function MyRegistrations() {
                     </div>
 
                     {reg.status !== "rejected" && (
-                      <button
-                        onClick={() => handleCancel(reg._id)}
-                        className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 hover:text-red-700 hover:border-red-300 transition-all duration-200 w-fit"
-                      >
-                        <X size={12} /> Cancel
-                      </button>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {reg.status === "approved" && (
+                          <button
+                            onClick={() => openQR(reg._id, event.title)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 hover:border-blue-300 transition-all duration-200"
+                          >
+                            <QrCode size={12} /> QR Code
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleCancel(reg._id)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-500 border border-red-200 rounded-lg hover:bg-red-50 hover:text-red-700 hover:border-red-300 transition-all duration-200"
+                        >
+                          <X size={12} /> Cancel
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
