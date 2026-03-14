@@ -156,14 +156,19 @@ export const emailTemplates = {
   }),
 
   // ✅ Student registration approved by admin
-  eventRegistered: (name, eventTitle, eventId) => ({
+  eventRegistered: (name, eventTitle, eventId, registrationId) => ({
     subject: `Registration Approved - ${eventTitle}`,
     html: emailWrapper(`
       <h2 style="margin: 0 0 6px; color: #1e293b; font-size: 20px;">Congratulations, ${name}! 🎉</h2>
       <p style="color: #475569; font-size: 15px; line-height: 1.6;">Your registration for the following event has been <strong style="color: #16a34a;">approved</strong>:</p>
       ${alertBlock(`✅ <strong>${eventTitle}</strong> — You are now a confirmed participant!`, "#15803d", "#f0fdf4", "#16a34a")}
-      <p style="color: #475569; font-size: 14px;">We look forward to seeing you there. Click below to view full event details:</p>
-      ${primaryButton("View Event", `${process.env.FRONTEND_URL}/events/${eventId}`)}
+      <p style="color: #475569; font-size: 14px; margin-bottom: 4px;">Your entry ticket is ready. Show it at the venue entrance to get checked in:</p>
+      ${primaryButton("🎫 View My Ticket", `${process.env.FRONTEND_URL}/ticket/${registrationId}`)}
+      <p style="margin-top: 16px;">
+        <a href="${process.env.FRONTEND_URL}/events/${eventId}" style="color: #2563eb; font-size: 13px; font-family: Arial, sans-serif; text-decoration: underline;">
+          View event details
+        </a>
+      </p>
     `),
   }),
 

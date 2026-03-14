@@ -1,5 +1,6 @@
 import MyRegistrations from "./MyRegistrations";
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import StatsCard from "../components/StatsCard";
 import Sidebar from "../components/Sidebar";
@@ -17,8 +18,9 @@ import {
 import { TrendingUp } from "lucide-react";
 
 export default function StudentDashboard() {
-  const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("overview");
+  const { user }   = useAuth();
+  const location   = useLocation();
+  const [activeTab, setActiveTab] = useState(location.state?.activeTab || "overview");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -96,8 +98,8 @@ export default function StudentDashboard() {
           collapsed={collapsed}
           setCollapsed={setCollapsed}
           items={[
-            { key: "overview", label: "Overview", icon: <FiHome /> },
-            { key: "myevents", label: "My Events", icon: <FiCalendar /> },
+            { key: "overview",      label: "Overview",          icon: <FiHome /> },
+            { key: "myevents",      label: "My Registrations",  icon: <FiList /> },
           ]}
         />
 

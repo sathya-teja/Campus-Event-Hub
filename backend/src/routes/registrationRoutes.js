@@ -21,6 +21,7 @@ import {
 
 import {
   getQRCode,
+  getTicket,
   scanQR,
   getEventAttendance,
 } from "../controllers/attendanceController.js";
@@ -66,6 +67,14 @@ router.get(
   verifyToken,
   authorizeRoles("student"),
   getQRCode
+);
+
+// Get full ticket data (QR + event + student info) for the ticket page
+router.get(
+  "/:id/ticket",
+  verifyToken,
+  authorizeRoles("student"),
+  getTicket
 );
 
 /*

@@ -204,7 +204,7 @@ export const approveRegistration = async (req, res) => {
     try {
       const student = await User.findById(registration.userId).select("name email");
       if (student) {
-        const template = emailTemplates.eventRegistered(student.name, event.title, event._id);
+        const template = emailTemplates.eventRegistered(student.name, event.title, event._id, registration._id);
         await sendEmail({ to: student.email, ...template });
       }
     } catch (emailError) {

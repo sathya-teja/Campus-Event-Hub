@@ -97,6 +97,10 @@ export const exportAllRegistrationsJSON = () =>
 export const getRegistrationQR      = (registrationId) =>
   API.get(`/registrations/${registrationId}/qr`);
 
+// Student: get full ticket (QR + event details + student info) for the ticket page
+export const getRegistrationTicket  = (registrationId) =>
+  API.get(`/registrations/${registrationId}/ticket`);
+
 // Admin: post a scanned QR payload to mark attendance
 export const scanAttendanceQR       = (qrPayload) =>
   API.post("/registrations/scan", { qrPayload });

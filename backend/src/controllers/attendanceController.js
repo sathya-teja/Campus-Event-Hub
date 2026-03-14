@@ -62,6 +62,75 @@ export const getQRCode = async (req, res) => {
 
 /*
 ========================================
+🎫 GET FULL TICKET  (student only)
+GET /api/registrations/:id/ticket
+Returns QR payload + event details + student name for the ticket page
+========================================
+*/
+export const getTicket = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid registration ID" });
+    }
+
+    const registration = await Registration.findById(id)
+      .populate("userId", "name email college")
+      .populate("eventId", "title location startDate endDate category image")
+      .lean();
+
+    if (!registration) {
+      return res.status(404).json({ message: "Registration not found" });
+    }
+
+    if (registration.userId._id.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Access denied. This is not your registration." });
+    }
+
+    if (registration.status !== "approved") {
+      return res.status(400).json({ message: "Ticket is only available for approved registrations." });
+    }
+
+    const event = registration.eventId;
+
+    if (new Date(event.endDate) < new Date()) {
+      return res.status(400).json({ message: "This event has already ended." });
+    }
+
+    // Generate / reuse the qrToken
+    let { qrToken } = registration;
+    if (!qrToken) {
+      qrToken = crypto.randomBytes(32).toString("hex");
+      await Registration.findByIdAndUpdate(id, { qrToken });
+    }
+
+    const qrPayload = `${registration._id.toString()}.${qrToken}`;
+
+    return res.status(200).json({
+      qrPayload,
+      attended   : registration.attended,
+      attendedAt : registration.attendedAt,
+      student    : registration.userId,
+      event      : {
+        _id       : event._id,
+        title     : event.title,
+        location  : event.location,
+        startDate : event.startDate,
+        endDate   : event.endDate,
+        category  : event.category,
+        image     : event.image,
+      },
+    });
+
+  } catch (error) {
+    console.error("❌ getTicket error:", error.message);
+    return res.status(500).json({ message: "Failed to load ticket." });
+  }
+};
+
+/*
+========================================
 📷 SCAN QR CODE  (college_admin only)
 POST /api/registrations/scan
 Body: { qrPayload: "<signed JWT>" }
