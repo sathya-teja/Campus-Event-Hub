@@ -14,10 +14,12 @@ const eventSchema = new mongoose.Schema(
       type: String,
       enum: ["Tech", "Cultural", "Sports", "Workshop"],
       required: true,
+      index: true,
     },
     startDate: {
       type: Date,
       required: true,
+      index: true,
     },
     endDate: {
       type: Date,
@@ -46,6 +48,7 @@ currentParticipants: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
     },
   },
   { timestamps: true },

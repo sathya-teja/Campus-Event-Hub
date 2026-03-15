@@ -25,6 +25,7 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["student", "college_admin", "super_admin"],
       default: "student",
+      index: true,
     },
     college: {
       type: String,
@@ -53,6 +54,7 @@ const userSchema = new mongoose.Schema(
         if (this.role === "college_admin") return "pending";
         return "approved";
       },
+      index: true,
     },
   },
   { timestamps: true }
