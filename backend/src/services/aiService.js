@@ -4,6 +4,14 @@ import path from "path";
 import Event from "../models/Event.js";
 import User from "../models/User.js";
 
+let groq = null;
+function getGroqClient() {
+  if (!groq) {
+    groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  }
+  return groq;
+}
+
 /* ─────────────────────────────────────────────
    IN-MEMORY CONVERSATION STORE
    Each session: { history[], lastActive }
@@ -12,8 +20,8 @@ import User from "../models/User.js";
 ───────────────────────────────────────────── */
 const conversations = new Map();
 
-const IDLE_TIMEOUT_MS    = 2 * 60 * 60 * 1000; // 2 hours
-const CLEANUP_INTERVAL_MS = 30 * 60 * 1000;     // 30 minutes
+const IDLE_TIMEOUT_MS    = 2 * 60 * 60 * 1000;
+const CLEANUP_INTERVAL_MS = 30 * 60 * 1000;
 
 setInterval(() => {
   const now = Date.now();
@@ -24,13 +32,6 @@ setInterval(() => {
   }
 }, CLEANUP_INTERVAL_MS);
 
-/* ─────────────────────────────────────────────
-   INTENT DETECTION
-   Returns which DB queries are needed.
-   Follow-up / conversational messages get
-   no DB fetch — the AI already has the data
-   in its history and can answer from there.
-───────────────────────────────────────────── */
 const FOLLOWUP_PATTERN = /^\s*(more|again|re-?list|repeat|show (them|it|all|more)|list (them|all|more)|yes|ok(ay)?|got it|thanks?|thank you|all of them|all events?)\s*[.?!]?\s*$/i;
 
 function detectIntent(message) {
@@ -51,16 +52,10 @@ function detectIntent(message) {
   };
 }
 
-/* ─────────────────────────────────────────────
-   DB CONTEXT BUILDER
-   Fetches only what intent needs and formats
-   it as a plain-text block for the AI prompt.
-───────────────────────────────────────────── */
 async function buildDbContext(intent, user) {
   const lines = [];
 
   try {
-    // Upcoming events — visible to everyone
     if (intent.listEvents) {
       const now = new Date();
       const events = await Event.find({ startDate: { $gte: now } })
@@ -84,7 +79,6 @@ async function buildDbContext(intent, user) {
       }
     }
 
-    // Events created by this college admin
     if (intent.myEvents && user?.role === "college_admin") {
       const myEvents = await Event.find({ createdBy: user._id })
         .sort({ startDate: -1 })
@@ -104,7 +98,6 @@ async function buildDbContext(intent, user) {
       }
     }
 
-    // Logged-in user's own profile
     if (intent.myProfile && user) {
       lines.push(
         `LIVE DATA — Your Profile: Name: ${user.name} | Email: ${user.email} | ` +
@@ -112,7 +105,6 @@ async function buildDbContext(intent, user) {
       );
     }
 
-    // Platform user stats — admin and super admin only
     if (intent.userStats && (user?.role === "super_admin" || user?.role === "college_admin")) {
       const [totalStudents, totalAdmins] = await Promise.all([
         User.countDocuments({ role: "student",       status: "approved" }),
@@ -124,7 +116,6 @@ async function buildDbContext(intent, user) {
       );
     }
 
-    // Pending college admins — super admin only
     if (intent.pendingAdmins && user?.role === "super_admin") {
       const pending = await User.find({ role: "college_admin", status: "pending" })
         .select("name email college createdAt")
@@ -154,9 +145,6 @@ async function buildDbContext(intent, user) {
     : "";
 }
 
-/* ─────────────────────────────────────────────
-   TRAINING FILE — cached after first read
-───────────────────────────────────────────── */
 let cachedTraining = null;
 
 function loadTraining() {
@@ -177,11 +165,10 @@ function loadTraining() {
    MAIN EXPORT
 ───────────────────────────────────────────── */
 export const getChatResponse = async (message, user) => {
-  const groq      = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  const groq    = getGroqClient();
   const sessionId = user?._id?.toString() || "guest";
   const role      = user?.role || "guest";
 
-  // Initialize session
   if (!conversations.has(sessionId)) {
     const training = loadTraining();
     conversations.set(sessionId, {
@@ -216,16 +203,13 @@ IMPORTANT RULES:
   const session    = conversations.get(sessionId);
   session.lastActive = Date.now();
 
-  // Detect what the user wants and fetch DB data
   const intent    = detectIntent(message);
   const dbContext = await buildDbContext(intent, user);
 
-  // Inject DB context into the user message if we fetched anything
   const userContent = dbContext ? `${message}\n${dbContext}` : message;
 
   session.history.push({ role: "user", content: userContent });
 
-  // Keep max 10 exchanges (system prompt + 20 messages)
   if (session.history.length > 21) {
     session.history.splice(1, 2);
   }
@@ -244,7 +228,6 @@ IMPORTANT RULES:
 
   } catch (error) {
     console.error("Groq API error:", error);
-    // Remove the failed user message to keep history clean
     session.history.pop();
     return "I'm currently having trouble responding. Please try again shortly.";
   }

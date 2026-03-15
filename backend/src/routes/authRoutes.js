@@ -1,4 +1,5 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import {
   registerUser,
   loginUser,
@@ -6,28 +7,40 @@ import {
   forgotPassword,
   resetPassword
 } from "../controllers/authController.js";
-
 import { verifyToken } from "../middleware/authmiddleware.js";
 
 const router = express.Router();
 
-/* ===============================
-   AUTH ROUTES
-================================= */
+// ── Rate limiters ──────────────────────────────
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,  // 15 minutes
+  max: 10,                    // 10 attempts per IP
+  message: { message: "Too many login attempts. Please try again after 15 minutes." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
-// Register
-router.post("/register", registerUser);
+const registerLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,  // 1 hour
+  max: 5,                     // 5 registrations per IP
+  message: { message: "Too many accounts created. Please try again after an hour." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
-// Login
-router.post("/login", loginUser);
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,  // 15 minutes
+  max: 5,                     // 5 attempts per IP
+  message: { message: "Too many requests. Please try again after 15 minutes." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+// ───────────────────────────────────────────────
 
-// Forgot Password
-router.post("/forgot-password", forgotPassword);
-
-// Reset Password
+router.post("/register", registerLimiter, registerUser);
+router.post("/login", loginLimiter, loginUser);
+router.post("/forgot-password", forgotPasswordLimiter, forgotPassword);
 router.put("/reset-password/:token", resetPassword);
-
-// Get logged-in user
 router.get("/me", verifyToken, getMe);
 
 export default router;

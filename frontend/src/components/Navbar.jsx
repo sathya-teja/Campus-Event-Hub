@@ -117,14 +117,6 @@ export default function Navbar({ toggleSidebar, setSidebarOpen }) {
           >
             CampusEventHub
           </h1>
-          {handleToggle && !isGuest && (
-            <button
-              className="md:hidden p-2 rounded-md hover:bg-gray-100 transition"
-              onClick={() => handleToggle(true)}
-            >
-              <FiMenu size={22} className="text-gray-600" />
-            </button>
-          )}
         </div>
 
         {/* CENTER NAV */}
@@ -174,6 +166,16 @@ export default function Navbar({ toggleSidebar, setSidebarOpen }) {
         ) : (
           /* ── Authenticated ── */
           <div className="flex items-center gap-2">
+
+            {/* Sidebar toggle — mobile only, dashboard pages only */}
+            {handleToggle && (
+              <button
+                className="md:hidden p-2 rounded-md hover:bg-gray-100 transition"
+                onClick={() => handleToggle(true)}
+              >
+                <FiMenu size={22} className="text-gray-600" />
+              </button>
+            )}
 
             {/* 🔔 Notification Bell */}
             <NotificationBell user={user} />

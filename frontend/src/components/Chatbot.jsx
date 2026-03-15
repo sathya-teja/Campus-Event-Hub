@@ -1,21 +1,238 @@
 import { useState, useEffect, useRef } from "react";
-import { sendChatMessage } from "../services/api";
+import { useNavigate } from "react-router-dom";
+import { sendChatMessage, BASE_URL } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  MessageCircle,
-  X,
-  Send,
-  Bot,
-  User,
-  Minimize2,
-  RotateCcw,
-  Sparkles,
-  ChevronDown,
+  MessageCircle, X, Send, Bot, User, Minimize2,
+  RotateCcw, Sparkles, ChevronDown,
+  Calendar, MapPin, ExternalLink, Tag,
 } from "lucide-react";
 
+/* ══════════════════════════════════════════════
+   PARSE EVENTS from AI text
+   Pattern: 1. "Title" | Category: X | Location: Y | Start: Z | By: W (College)
+══════════════════════════════════════════════ */
+function parseEvents(text) {
+  const events = [];
+  const lines = text.split("\n");
+  for (const line of lines) {
+    const match = line.match(
+      /^\d+\.\s+"([^"]+)"\s*\|\s*Category:\s*([^|]+)\s*\|\s*Location:\s*([^|]+)\s*\|\s*Start:\s*([^|]+?)(?:\s*\|\s*End:\s*([^|]+?))?(?:\s*\|\s*(?:Created|By):\s*(.+))?$/
+    );
+    if (match) {
+      const [, title, category, location, start, end, by] = match;
+      events.push({
+        title: title.trim(),
+        category: category.trim(),
+        location: location.trim(),
+        date: end ? `${start.trim()} – ${end.trim()}` : start.trim(),
+        college: by ? by.replace(/\(.*?\)/, "").trim() : "",
+      });
+    }
+  }
+  return events;
+}
+
+/* ══════════════════════════════════════════════
+   INLINE RENDERER — bold, italic, code
+══════════════════════════════════════════════ */
+function renderInline(text, isUser = false) {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`)/g);
+  return parts.map((part, i) => {
+    if (/^\*\*[^*]+\*\*$/.test(part))
+      return <strong key={i} className={isUser ? "font-semibold text-white" : "font-semibold text-slate-800"}>{part.slice(2, -2)}</strong>;
+    if (/^\*[^*]+\*$/.test(part))
+      return <em key={i} className="italic">{part.slice(1, -1)}</em>;
+    if (/^`[^`]+`$/.test(part))
+      return <code key={i} className="bg-slate-100 text-blue-700 px-1 py-0.5 rounded text-[11px] font-mono">{part.slice(1, -1)}</code>;
+    return part;
+  });
+}
+
+/* ══════════════════════════════════════════════
+   EVENT CARD
+══════════════════════════════════════════════ */
+function EventCard({ event, navigate }) {
+  return (
+    <div className="mt-1.5 bg-blue-50 border border-blue-100 rounded-xl overflow-hidden">
+      <div className="px-3 py-2.5 space-y-1">
+        <p className="text-xs font-bold text-slate-800 leading-snug">{event.title}</p>
+        {event.category && (
+          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+            <Tag size={9} /> {event.category}
+          </span>
+        )}
+        {event.date && (
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+            <Calendar size={10} className="text-blue-500 flex-shrink-0" />
+            <span>{event.date}</span>
+          </div>
+        )}
+        {event.location && (
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+            <MapPin size={10} className="text-blue-500 flex-shrink-0" />
+            <span>{event.location}</span>
+          </div>
+        )}
+        {event.college && (
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+            <Tag size={10} className="text-purple-500 flex-shrink-0" />
+            <span>{event.college}</span>
+          </div>
+        )}
+      </div>
+      <button
+        onClick={() => navigate("/events")}
+        className="w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-blue-600 bg-blue-100 hover:bg-blue-200 py-2 transition-colors"
+      >
+        <ExternalLink size={10} /> View Events
+      </button>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   MAIN MARKDOWN RENDERER
+══════════════════════════════════════════════ */
+function BotMessage({ text, navigate }) {
+  const events = parseEvents(text);
+
+  const cleanLines = text.split("\n").filter(
+    line => !line.match(/^\d+\.\s+"[^"]+"\s*\|\s*Category:/)
+  );
+
+  const lines = cleanLines;
+  const elements = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    if (!line.trim()) {
+      elements.push(<div key={`sp${i}`} className="h-1" />);
+      i++; continue;
+    }
+
+    if (/^---+$/.test(line.trim())) {
+      elements.push(<hr key={`hr${i}`} className="border-slate-100 my-1.5" />);
+      i++; continue;
+    }
+
+    if (/^#{1,3}\s/.test(line)) {
+      const txt = line.replace(/^#{1,3}\s/, "");
+      elements.push(
+        <p key={i} className="text-[11px] font-bold text-blue-700 uppercase tracking-wide mt-2 mb-0.5">
+          {txt}
+        </p>
+      );
+      i++; continue;
+    }
+
+    if (/^\d+\.\s/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\d+\.\s/.test(lines[i])) {
+        const num = lines[i].match(/^(\d+)\./)[1];
+        const content = lines[i].replace(/^\d+\.\s/, "");
+        items.push(
+          <li key={i} className="flex gap-2 items-start text-[13px]">
+            <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[10px] font-bold flex items-center justify-center mt-0.5">
+              {num}
+            </span>
+            <span className="flex-1 leading-relaxed text-slate-700">{renderInline(content)}</span>
+          </li>
+        );
+        i++;
+      }
+      elements.push(<ul key={`ol${i}`} className="space-y-1.5 my-1.5">{items}</ul>);
+      continue;
+    }
+
+    if (/^[-•*]\s/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^[-•*]\s/.test(lines[i])) {
+        items.push(
+          <li key={i} className="flex gap-2 items-start text-[13px]">
+            <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5" />
+            <span className="flex-1 leading-relaxed text-slate-700">{renderInline(lines[i].replace(/^[-•*]\s/, ""))}</span>
+          </li>
+        );
+        i++;
+      }
+      elements.push(<ul key={`ul${i}`} className="space-y-1.5 my-1.5">{items}</ul>);
+      continue;
+    }
+
+    if (/^>\s/.test(line)) {
+      elements.push(
+        <div key={i} className="border-l-2 border-blue-300 pl-3 py-0.5 my-1 italic text-[12px] text-slate-500">
+          {renderInline(line.replace(/^>\s/, ""))}
+        </div>
+      );
+      i++; continue;
+    }
+
+    elements.push(
+      <p key={i} className="leading-relaxed text-[13px] text-slate-700">
+        {renderInline(line)}
+      </p>
+    );
+    i++;
+  }
+
+  if (events.length > 0) {
+    elements.push(
+      <div key="events" className="space-y-2 mt-2">
+        {events.map((ev, idx) => (
+          <EventCard key={idx} event={ev} navigate={navigate} />
+        ))}
+      </div>
+    );
+  }
+
+  return <div className="space-y-0.5">{elements}</div>;
+}
+
+/* ══════════════════════════════════════════════
+   USER AVATAR — shows profile pic or initial
+══════════════════════════════════════════════ */
+function UserAvatar({ user }) {
+  const [imgErr, setImgErr] = useState(false);
+
+  const src =
+    user?.profileImage && !imgErr
+      ? user.profileImage.startsWith("http")
+        ? user.profileImage
+        : `${BASE_URL}/uploads/${user.profileImage}`
+      : null;
+
+  return (
+    <div className="w-6 h-6 rounded-lg overflow-hidden flex-shrink-0 mb-1 border border-white shadow-sm">
+      {src ? (
+        <img
+          src={src}
+          alt={user?.name || "User"}
+          className="w-full h-full object-cover"
+          onError={() => setImgErr(true)}
+        />
+      ) : (
+        <div className="w-full h-full bg-blue-600 flex items-center justify-center">
+          {user?.name
+            ? <span className="text-[10px] font-bold text-white leading-none">{user.name[0].toUpperCase()}</span>
+            : <User size={11} className="text-white" />
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   CHATBOT
+══════════════════════════════════════════════ */
 const Chatbot = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const [isOpen, setIsOpen]           = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -26,7 +243,6 @@ const Chatbot = () => {
   const messagesEndRef = useRef(null);
   const inputRef       = useRef(null);
 
-  /* ── Reset chat whenever the logged-in user changes (logout/login) ── */
   useEffect(() => {
     setMessages([]);
     setIsOpen(false);
@@ -34,23 +250,19 @@ const Chatbot = () => {
     setMessage("");
   }, [user?._id]);
 
-  /* ── Auto scroll to bottom ── */
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  /* ── Welcome message on open ── */
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       setTimeout(() => {
         const firstName = user?.name ? `, ${user.name.split(" ")[0]}` : "";
-        setMessages([
-          {
-            sender: "bot",
-            text: `Hi there${firstName}! 👋 I'm your CampusEventHub assistant.\n\nI can help you discover events, answer platform questions, and more. What would you like to know?`,
-            time: new Date(),
-          },
-        ]);
+        setMessages([{
+          sender: "bot",
+          text: `Hi there${firstName}! 👋 I'm your CampusEventHub assistant.\n\nI can help you discover events, answer platform questions, and more. What would you like to know?`,
+          time: new Date(),
+        }]);
       }, 300);
     }
     if (isOpen && !isMinimized) {
@@ -60,46 +272,34 @@ const Chatbot = () => {
 
   const sendMessage = async () => {
     if (!message.trim() || loading) return;
-
     const userMessage = { sender: "user", text: message.trim(), time: new Date() };
     setMessages((prev) => [...prev, userMessage]);
     setLoading(true);
     setMessage("");
-
     try {
       const res = await sendChatMessage(userMessage.text);
-      setMessages((prev) => [
-        ...prev,
-        { sender: "bot", text: res.data.response, time: new Date() },
-      ]);
+      setMessages((prev) => [...prev, { sender: "bot", text: res.data.response, time: new Date() }]);
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "bot",
-          text: "Sorry, I ran into an issue. Please try again in a moment.",
-          time: new Date(),
-          isError: true,
-        },
-      ]);
+      setMessages((prev) => [...prev, {
+        sender: "bot",
+        text: "Sorry, I ran into an issue. Please try again in a moment.",
+        time: new Date(),
+        isError: true,
+      }]);
     }
-
     setLoading(false);
   };
 
   const resetChat = () => {
     setMessages([]);
     setTimeout(() => {
-      setMessages([
-        { sender: "bot", text: "Chat cleared! How can I help you?", time: new Date() },
-      ]);
+      setMessages([{ sender: "bot", text: "Chat cleared! How can I help you?", time: new Date() }]);
     }, 100);
   };
 
   const formatTime = (date) =>
     date?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-  // Quick prompts are role-aware
   const QUICK_PROMPTS = user?.role === "college_admin"
     ? ["My events", "Create an event", "Manage participants"]
     : user?.role === "super_admin"
@@ -150,12 +350,7 @@ const Chatbot = () => {
         {isOpen && (
           <motion.div
             initial={{ opacity: 0, y: 32, scale: 0.94 }}
-            animate={{
-              opacity: 1,
-              y: 0,
-              scale: 1,
-              height: isMinimized ? "64px" : undefined,
-            }}
+            animate={{ opacity: 1, y: 0, scale: 1, height: isMinimized ? "64px" : undefined }}
             exit={{ opacity: 0, y: 32, scale: 0.94 }}
             transition={{ type: "spring", stiffness: 300, damping: 28 }}
             className="fixed z-50 flex flex-col overflow-hidden
@@ -164,67 +359,42 @@ const Chatbot = () => {
               bg-white border border-slate-200/80 shadow-2xl shadow-slate-400/20"
             style={{
               maxHeight: isMinimized ? "64px" : "calc(100vh - 5rem)",
-              height:    isMinimized ? "64px" : "min(560px, calc(100vh - 5.5rem))",
+              height:    isMinimized ? "64px" : "min(600px, calc(100vh - 5.5rem))",
             }}
           >
-            {/* ── HEADER ── */}
+            {/* HEADER */}
             <div className="flex items-center gap-3 px-4 py-3 flex-shrink-0 bg-gradient-to-r from-blue-600 to-blue-700 relative overflow-hidden">
-              {/* Decorative background circles */}
               <div className="absolute -top-5 -right-5 w-24 h-24 rounded-full bg-white/5 pointer-events-none" />
               <div className="absolute -bottom-8 left-8 w-20 h-20 rounded-full bg-white/5 pointer-events-none" />
-
-              {/* Bot avatar */}
               <div className="relative flex-shrink-0">
                 <div className="w-9 h-9 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center border border-white/20">
                   <Sparkles size={16} className="text-white" />
                 </div>
                 <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-blue-600" />
               </div>
-
-              {/* Title + role */}
               <div className="flex-1 min-w-0 relative z-10">
-                <p className="text-sm font-semibold text-white leading-tight tracking-tight">
-                  CampusEventHub AI
-                </p>
+                <p className="text-sm font-semibold text-white leading-tight tracking-tight">CampusEventHub AI</p>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   <span className={`w-1.5 h-1.5 rounded-full ${roleDot} animate-pulse`} />
                   <span className="text-[11px] text-blue-100 font-medium">{roleLabel}</span>
                 </div>
               </div>
-
-              {/* Controls */}
               <div className="flex items-center gap-0.5 relative z-10">
-                <button
-                  onClick={resetChat}
-                  className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center text-blue-200 hover:text-white transition-all"
-                  title="Clear chat"
-                >
+                <button onClick={resetChat} className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center text-blue-200 hover:text-white transition-all" title="Clear chat">
                   <RotateCcw size={13} />
                 </button>
-                <button
-                  onClick={() => setIsMinimized(!isMinimized)}
-                  className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center text-blue-200 hover:text-white transition-all"
-                  title={isMinimized ? "Expand" : "Minimize"}
-                >
-                  {isMinimized
-                    ? <ChevronDown size={14} className="rotate-180" />
-                    : <Minimize2 size={13} />
-                  }
+                <button onClick={() => setIsMinimized(!isMinimized)} className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center text-blue-200 hover:text-white transition-all" title={isMinimized ? "Expand" : "Minimize"}>
+                  {isMinimized ? <ChevronDown size={14} className="rotate-180" /> : <Minimize2 size={13} />}
                 </button>
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center text-blue-200 hover:text-white transition-all"
-                  title="Close"
-                >
+                <button onClick={() => setIsOpen(false)} className="w-7 h-7 rounded-lg hover:bg-white/15 flex items-center justify-center text-blue-200 hover:text-white transition-all" title="Close">
                   <X size={14} />
                 </button>
               </div>
             </div>
 
-            {/* ── BODY ── */}
+            {/* BODY */}
             {!isMinimized && (
               <>
-                {/* Messages area */}
                 <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-slate-50/70 min-h-0">
                   <AnimatePresence initial={false}>
                     {messages.map((msg, index) => (
@@ -233,20 +403,17 @@ const Chatbot = () => {
                         initial={{ opacity: 0, y: 8, scale: 0.97 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         transition={{ duration: 0.2, ease: "easeOut" }}
-                        className={`flex items-end gap-2 ${
-                          msg.sender === "user" ? "justify-end" : "justify-start"
-                        }`}
+                        className={`flex items-end gap-2 ${msg.sender === "user" ? "justify-end" : "justify-start"}`}
                       >
-                        {/* Bot avatar */}
                         {msg.sender === "bot" && (
                           <div className="w-6 h-6 rounded-lg bg-blue-100 border border-blue-200/60 flex items-center justify-center flex-shrink-0 mb-1">
                             <Bot size={12} className="text-blue-600" />
                           </div>
                         )}
 
-                        <div className={`flex flex-col gap-1 max-w-[80%] ${msg.sender === "user" ? "items-end" : "items-start"}`}>
+                        <div className={`flex flex-col gap-1 max-w-[82%] ${msg.sender === "user" ? "items-end" : "items-start"}`}>
                           <div
-                            className={`px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-line ${
+                            className={`px-3.5 py-2.5 text-[13px] ${
                               msg.sender === "user"
                                 ? "bg-gradient-to-br from-blue-500 to-blue-600 text-white rounded-2xl rounded-br-sm shadow-sm shadow-blue-200/60"
                                 : msg.isError
@@ -254,67 +421,42 @@ const Chatbot = () => {
                                 : "bg-white text-slate-700 border border-slate-100/80 rounded-2xl rounded-bl-sm shadow-sm"
                             }`}
                           >
-                            {msg.text}
+                            {msg.sender === "user"
+                              ? <p className="leading-relaxed">{msg.text}</p>
+                              : <BotMessage text={msg.text} navigate={navigate} />
+                            }
                           </div>
-                          <span className="text-[10px] text-slate-400 px-1">
-                            {formatTime(msg.time)}
-                          </span>
+                          <span className="text-[10px] text-slate-400 px-1">{formatTime(msg.time)}</span>
                         </div>
 
-                        {/* User avatar — shows first letter of name */}
-                        {msg.sender === "user" && (
-                          <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0 mb-1">
-                            {user?.name ? (
-                              <span className="text-[10px] font-bold text-white leading-none">
-                                {user.name[0].toUpperCase()}
-                              </span>
-                            ) : (
-                              <User size={11} className="text-white" />
-                            )}
-                          </div>
-                        )}
+                        {msg.sender === "user" && <UserAvatar user={user} />}
                       </motion.div>
                     ))}
                   </AnimatePresence>
 
-                  {/* Typing indicator */}
                   {loading && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="flex items-end gap-2"
-                    >
+                    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="flex items-end gap-2">
                       <div className="w-6 h-6 rounded-lg bg-blue-100 border border-blue-200/60 flex items-center justify-center flex-shrink-0">
                         <Bot size={12} className="text-blue-600" />
                       </div>
                       <div className="bg-white border border-slate-100 shadow-sm px-4 py-3 rounded-2xl rounded-bl-sm flex items-center gap-1.5">
                         {[0, 1, 2].map((i) => (
-                          <span
-                            key={i}
-                            className="w-1.5 h-1.5 rounded-full bg-blue-400"
-                            style={{
-                              animation: "chatbounce 1.2s infinite",
-                              animationDelay: `${i * 0.18}s`,
-                            }}
+                          <span key={i} className="w-1.5 h-1.5 rounded-full bg-blue-400"
+                            style={{ animation: "chatbounce 1.2s infinite", animationDelay: `${i * 0.18}s` }}
                           />
                         ))}
                       </div>
                     </motion.div>
                   )}
-
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Quick prompts */}
                 {messages.length <= 1 && (
                   <div className="px-3 py-2.5 bg-white border-t border-slate-100 flex gap-1.5 flex-wrap flex-shrink-0">
                     {QUICK_PROMPTS.map((prompt) => (
                       <button
                         key={prompt}
-                        onClick={() => {
-                          setMessage(prompt);
-                          inputRef.current?.focus();
-                        }}
+                        onClick={() => { setMessage(prompt); inputRef.current?.focus(); }}
                         className="text-xs px-3 py-1.5 rounded-full border border-blue-100 text-blue-600 bg-blue-50/80 hover:bg-blue-100 hover:border-blue-200 transition-all font-medium"
                       >
                         {prompt}
@@ -323,7 +465,6 @@ const Chatbot = () => {
                   </div>
                 )}
 
-                {/* Input */}
                 <div className="px-3 py-3 border-t border-slate-100 bg-white flex items-center gap-2 flex-shrink-0">
                   <input
                     ref={inputRef}

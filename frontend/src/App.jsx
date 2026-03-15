@@ -15,7 +15,13 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import TicketPage from "./pages/TicketPage";
 import CheckInPage from "./pages/CheckInPage";
+import AppLoader from "./components/AppLoader";
+import { useAuth } from "./context/AuthContext";
+
 function App() {
+  const { loading } = useAuth();                      // ← add this
+
+  if (loading) return <AppLoader />;    
   return (
     <BrowserRouter>
 
