@@ -28,6 +28,7 @@ export default function TicketPage() {
   const [loading,   setLoading]   = useState(true);
   const [error,     setError]     = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [attendanceCode, setAttendanceCode] = useState(null);
 
   const load = useCallback(async (showRefreshing = false) => {
     if (showRefreshing) setRefreshing(true);
@@ -36,6 +37,7 @@ export default function TicketPage() {
     try {
       const { data } = await getRegistrationTicket(id);
       setTicket(data);
+      if (data.attendanceCode) setAttendanceCode(data.attendanceCode);
       // Render QR
       const url = await QRCodeLib.toDataURL(data.qrPayload, {
         errorCorrectionLevel: "M",
@@ -200,6 +202,24 @@ export default function TicketPage() {
             </div>
 
             <p style={styles.qrSub}>Registration ID: <span style={{ fontFamily: "monospace", fontSize: 11 }}>{id}</span></p>
+
+            {/* ── Attendance Code fallback ── */}
+            {!attended && attendanceCode && (
+              <div style={styles.codeSection}>
+                <div style={styles.codeDivider}>
+                  <div style={styles.codeDividerLine} />
+                  <span style={styles.codeDividerText}>or use code</span>
+                  <div style={styles.codeDividerLine} />
+                </div>
+                <p style={styles.codeLabel}>Attendance Code</p>
+                <div style={styles.codeBox}>
+                  {attendanceCode.split("").map((digit, i) => (
+                    <span key={i} style={styles.codeDigit}>{digit}</span>
+                  ))}
+                </div>
+                <p style={styles.codeHint}>Show this to the admin if QR scan fails</p>
+              </div>
+            )}
           </div>
 
           {/* Actions */}
@@ -360,6 +380,64 @@ const styles = {
   qrImg: { display: "block", width: 220, height: 220, borderRadius: 8 },
   qrPlaceholder: { width: 220, height: 220 },
   qrSub: { fontSize: 11, color: "#9ca3af", marginTop: 10 },
+  codeSection: {
+    marginTop: 20,
+    textAlign: "center",
+  },
+  codeDivider: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 14,
+  },
+  codeDividerLine: {
+    flex: 1,
+    height: 1,
+    background: "#e5e7eb",
+  },
+  codeDividerText: {
+    fontSize: 11,
+    color: "#9ca3af",
+    fontWeight: 500,
+    whiteSpace: "nowrap",
+  },
+  codeLabel: {
+    fontSize: 11,
+    color: "#6b7280",
+    fontWeight: 600,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    marginBottom: 10,
+  },
+  codeBox: {
+    display: "inline-flex",
+    gap: 6,
+    padding: "12px 16px",
+    background: "#f8fafc",
+    border: "1.5px solid #e2e8f0",
+    borderRadius: 14,
+    marginBottom: 10,
+  },
+  codeDigit: {
+    width: 32,
+    height: 40,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#ffffff",
+    border: "1.5px solid #cbd5e1",
+    borderRadius: 8,
+    fontSize: 22,
+    fontWeight: 700,
+    color: "#1d4ed8",
+    fontFamily: "monospace",
+    letterSpacing: 0,
+  },
+  codeHint: {
+    fontSize: 11,
+    color: "#9ca3af",
+    marginTop: 4,
+  },
   actions: {
     display: "flex",
     gap: 10,

@@ -1,7 +1,7 @@
 // AdminDashboard.jsx
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getMyEvents, createEvent, updateEvent, deleteEvent, getImageUrl, getEventRegistrations, getAllRegistrations, approveRegistration, rejectRegistration, getAllUsers, getMyEventStudents, exportRegistrationsCSV, exportRegistrationsExcel, exportRegistrationsPDF, exportRegistrationsJSON, exportAllRegistrationsCSV, exportAllRegistrationsExcel, exportAllRegistrationsPDF, exportAllRegistrationsJSON, getEventAttendance } from "../services/api";
+import { getMyEvents, createEvent, updateEvent, deleteEvent, getImageUrl, getEventRegistrations, getAllRegistrations, approveRegistration, rejectRegistration, getAllUsers, getMyEventStudents, exportRegistrationsCSV, exportRegistrationsExcel, exportRegistrationsPDF, exportRegistrationsJSON, exportAllRegistrationsCSV, exportAllRegistrationsExcel, exportAllRegistrationsPDF, exportAllRegistrationsJSON, getEventAttendance, scanAttendanceQR } from "../services/api";
 import Navbar from "../components/Navbar";
 import StatsCard from "../components/StatsCard";
 import Sidebar from "../components/Sidebar";
@@ -2327,6 +2327,42 @@ function AttendanceSection() {
   const [search,          setSearch]          = useState("");
   const [attendedFilter,  setAttendedFilter]  = useState("all");
   const [exporting,       setExporting]       = useState(null);
+  const [codeInput,       setCodeInput]       = useState("");
+  const [codeLoading,     setCodeLoading]     = useState(false);
+  const [codeResult,      setCodeResult]      = useState(null); // { success, message }
+
+  const handleVerifyCode = async () => {
+    if (!codeInput.trim() || codeInput.trim().length !== 6 || !selectedEventId) return;
+    try {
+      setCodeLoading(true);
+      setCodeResult(null);
+      const res = await fetch(
+        (await import("../services/api")).BASE_URL + "/api/registrations/verify-code",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+          body: JSON.stringify({ code: codeInput.trim(), eventId: selectedEventId }),
+        }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        setCodeResult({ success: true, message: `✅ ${data.student?.name} marked present` });
+        setCodeInput("");
+        // refresh attendance list
+        const { data: updated } = await getEventAttendance(selectedEventId);
+        setAttendance(updated);
+      } else {
+        setCodeResult({ success: false, message: data.message || "Invalid code" });
+      }
+    } catch {
+      setCodeResult({ success: false, message: "Failed to verify code. Try again." });
+    } finally {
+      setCodeLoading(false);
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -2477,34 +2513,81 @@ function AttendanceSection() {
         </div>
       </div>
 
-      {/* ── Stats Bar ── */}
-      {attendance && !loadingReport && (
-        <div className="grid grid-cols-3 gap-3 sm:gap-4">
-          {/* Approved */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3.5 sm:p-4 flex items-center gap-3">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
-              <FiUsers size={16} />
+      {/* ── Code Verification Panel ── */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-4 sm:p-6">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-50 flex items-center justify-center flex-shrink-0">
+              <FiCheckSquare size={16} className="text-amber-600" />
             </div>
             <div className="min-w-0">
-              <p className="text-lg sm:text-xl font-bold text-gray-800 leading-none">{attendance.totalApproved}</p>
-              <p className="text-xs text-gray-400 mt-0.5">Approved</p>
+              <h4 className="text-sm font-semibold text-gray-800">Manual Code Entry</h4>
+              <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">Use when QR scan fails — enter the 6-digit code from student&#39;s ticket</p>
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              value={codeInput}
+              onChange={(e) => { setCodeInput(e.target.value.replace(/\D/g, "")); setCodeResult(null); }}
+              onKeyDown={(e) => e.key === "Enter" && handleVerifyCode()}
+              placeholder="Enter 6-digit code"
+              className="flex-1 text-center text-xl font-bold tracking-[0.4em] border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 bg-gray-50 transition-all placeholder:text-gray-300 placeholder:text-sm placeholder:tracking-normal placeholder:font-normal"
+              disabled={codeLoading || !selectedEventId}
+            />
+            <button
+              onClick={handleVerifyCode}
+              disabled={codeInput.length !== 6 || codeLoading || !selectedEventId}
+              className="w-full sm:w-auto px-6 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 text-white text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 flex-shrink-0"
+            >
+              {codeLoading
+                ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                : <FiCheckCircle size={15} />}
+              Verify Code
+            </button>
+          </div>
+          {codeResult && (
+            <div className={`mt-3 px-4 py-2.5 rounded-xl text-sm font-medium ${
+              codeResult.success
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : "bg-red-50 text-red-600 border border-red-200"
+            }`}>
+              {codeResult.message}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Stats Bar ── */}
+      {attendance && !loadingReport && (
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
+          {/* Approved */}
+          <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-2.5 sm:p-4 flex flex-col sm:flex-row items-center sm:items-center gap-1.5 sm:gap-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
+              <FiUsers size={14} />
+            </div>
+            <div className="min-w-0 text-center sm:text-left">
+              <p className="text-base sm:text-xl font-bold text-gray-800 leading-none">{attendance.totalApproved}</p>
+              <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5">Approved</p>
             </div>
           </div>
           {/* Attended */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3.5 sm:p-4 flex items-center gap-3">
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 flex-shrink-0">
-              <FiCheckCircle size={16} />
+          <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-2.5 sm:p-4 flex flex-col sm:flex-row items-center sm:items-center gap-1.5 sm:gap-3">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600 flex-shrink-0">
+              <FiCheckCircle size={14} />
             </div>
-            <div className="min-w-0">
-              <p className="text-lg sm:text-xl font-bold text-gray-800 leading-none">{attendance.totalAttended}</p>
-              <p className="text-xs text-gray-400 mt-0.5">Attended</p>
+            <div className="min-w-0 text-center sm:text-left">
+              <p className="text-base sm:text-xl font-bold text-gray-800 leading-none">{attendance.totalAttended}</p>
+              <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5">Attended</p>
             </div>
           </div>
           {/* Rate */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-3.5 sm:p-4">
-            <div className="flex justify-between items-center mb-2">
-              <p className="text-xs text-gray-400 font-medium">Rate</p>
-              <p className="text-xs font-bold text-gray-700">{attendedPct}%</p>
+          <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-2.5 sm:p-4">
+            <div className="flex justify-between items-center mb-1.5 sm:mb-2">
+              <p className="text-[10px] sm:text-xs text-gray-400 font-medium">Rate</p>
+              <p className="text-[10px] sm:text-xs font-bold text-gray-700">{attendedPct}%</p>
             </div>
             <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
               <div
@@ -2512,7 +2595,7 @@ function AttendanceSection() {
                 style={{ width:`${attendedPct}%` }}
               />
             </div>
-            <p className="text-xs text-gray-400 mt-1.5 truncate">
+            <p className="text-[10px] sm:text-xs text-gray-400 mt-1 truncate">
               {attendance.totalApproved - attendance.totalAttended} absent
             </p>
           </div>
@@ -2552,7 +2635,7 @@ function AttendanceSection() {
                 </button>
               )}
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {[
                 { value:"all",      label:"All",      count: attendance.registrations.length },
                 { value:"attended", label:"Present",  count: attendance.totalAttended },

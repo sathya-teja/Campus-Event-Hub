@@ -38,6 +38,8 @@ const registrationSchema = new mongoose.Schema(
       index: true,        // fast lookup during scan verification
       sparse: true,       // null values are not indexed (saves space)
     },
+    attendanceCode:       { type: String, default: null, index: true, sparse: true },
+    attendanceCodeExpiry: { type: Date,   default: null },
 
     attended: {
       type: Boolean,

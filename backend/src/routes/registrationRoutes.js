@@ -23,6 +23,7 @@ import {
   getQRCode,
   getTicket,
   scanQR,
+  verifyAttendanceCode,
   getEventAttendance,
 } from "../controllers/attendanceController.js";
 
@@ -69,7 +70,7 @@ router.get(
   getQRCode
 );
 
-// Get full ticket data (QR + event + student info) for the ticket page
+// Get full ticket (QR + attendance code + event details) for ticket page
 router.get(
   "/:id/ticket",
   verifyToken,
@@ -89,6 +90,14 @@ router.post(
   verifyToken,
   authorizeRoles("college_admin"),
   scanQR
+);
+
+// Verify attendance code (fallback when QR scan fails)
+router.post(
+  "/verify-code",
+  verifyToken,
+  authorizeRoles("college_admin"),
+  verifyAttendanceCode
 );
 
 // Get attendance report for a specific event

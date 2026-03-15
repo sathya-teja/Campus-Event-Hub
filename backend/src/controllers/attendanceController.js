@@ -99,16 +99,33 @@ export const getTicket = async (req, res) => {
     }
 
     // Generate / reuse the qrToken
-    let { qrToken } = registration;
+    let { qrToken, attendanceCode, attendanceCodeExpiry } = registration;
+    const updates = {};
+
     if (!qrToken) {
       qrToken = crypto.randomBytes(32).toString("hex");
-      await Registration.findByIdAndUpdate(id, { qrToken });
+      updates.qrToken = qrToken;
+    }
+
+    // Generate / refresh attendance code
+    // Refresh if missing or expired (within 1 hour of expiry)
+    const codeExpired = !attendanceCodeExpiry || new Date(attendanceCodeExpiry) < new Date();
+    if (!attendanceCode || codeExpired) {
+      attendanceCode       = Math.floor(100000 + Math.random() * 900000).toString();
+      attendanceCodeExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      updates.attendanceCode       = attendanceCode;
+      updates.attendanceCodeExpiry = attendanceCodeExpiry;
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await Registration.findByIdAndUpdate(id, updates);
     }
 
     const qrPayload = `${registration._id.toString()}.${qrToken}`;
 
     return res.status(200).json({
       qrPayload,
+      attendanceCode,
       attended   : registration.attended,
       attendedAt : registration.attendedAt,
       student    : registration.userId,
@@ -253,5 +270,81 @@ export const getEventAttendance = async (req, res) => {
   } catch (error) {
     console.error("❌ getEventAttendance error:", error.message);
     return res.status(500).json({ message: "Failed to fetch attendance." });
+  }
+};
+/*
+========================================
+🔢 VERIFY ATTENDANCE CODE  (college_admin only)
+POST /api/registrations/verify-code
+Body: { code: "482916", eventId: "..." }
+Fallback when QR scan fails — admin types the
+6-digit code shown on the student's ticket.
+========================================
+*/
+export const verifyAttendanceCode = async (req, res) => {
+  try {
+    const { code, eventId } = req.body;
+
+    if (!code || typeof code !== "string" || !/^\d{6}$/.test(code.trim())) {
+      return res.status(400).json({ message: "Please enter a valid 6-digit code." });
+    }
+
+    if (!eventId || !mongoose.Types.ObjectId.isValid(eventId)) {
+      return res.status(400).json({ message: "Invalid event ID." });
+    }
+
+    const event = await Event.findById(eventId).lean();
+
+    if (!event) {
+      return res.status(404).json({ message: "Event not found." });
+    }
+
+    if (event.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({ message: "Access denied. You do not manage this event." });
+    }
+
+    if (new Date(event.endDate) < new Date()) {
+      return res.status(400).json({ message: "This event has already ended. Attendance cannot be marked." });
+    }
+
+    const registration = await Registration.findOne({
+      attendanceCode: code.trim(),
+      eventId,
+    }).populate("userId", "name email");
+
+    if (!registration) {
+      return res.status(404).json({ message: "Invalid code. No matching registration found." });
+    }
+
+    if (!registration.attendanceCodeExpiry || new Date(registration.attendanceCodeExpiry) < new Date()) {
+      return res.status(401).json({ message: "This code has expired. Ask the student to refresh their ticket." });
+    }
+
+    if (registration.status !== "approved") {
+      return res.status(400).json({
+        message: `Cannot mark attendance — registration is ${registration.status}.`,
+      });
+    }
+
+    if (registration.attended) {
+      return res.status(400).json({
+        message: `Attendance already marked for ${registration.userId.name} at ${new Date(registration.attendedAt).toLocaleString("en-IN")}.`,
+      });
+    }
+
+    registration.attended   = true;
+    registration.attendedAt = new Date();
+    await registration.save();
+
+    return res.status(200).json({
+      message    : "Attendance marked successfully.",
+      student    : { name: registration.userId.name, email: registration.userId.email },
+      event      : { title: event.title },
+      attendedAt : registration.attendedAt,
+    });
+
+  } catch (error) {
+    console.error("❌ verifyAttendanceCode error:", error.message);
+    return res.status(500).json({ message: "Failed to verify code. Please try again." });
   }
 };
