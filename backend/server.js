@@ -11,6 +11,8 @@ import userRoutes from "./src/routes/userRoutes.js";
 import notificationRoutes from "./src/routes/notificationRoutes.js";
 import registrationRoutes from "./src/routes/registrationRoutes.js";
 import compression from "compression";      // ← add this
+import passport from "./src/config/passport.js";
+
 
 
 dotenv.config();
@@ -58,6 +60,9 @@ app.use((req, res, next) => {
   }
   next();
 });
+
+// ✅ NEW: Initialize Passport (no sessions — JWT only)
+app.use(passport.initialize());
 
 // ✅ Serve uploaded images (only once)
 app.use("/uploads", express.static("uploads"));

@@ -118,4 +118,17 @@ export const sendChatMessage = (message)   => API.post("/chat", { message });
 // e.g.  getImageUrl(event.image)  →  "http://localhost:5000/uploads/abc.jpg"
 export const getImageUrl = (path) => (path ? `${BASE_URL}/${path}` : null);
 
+
+// ✅ NEW: OAuth helper — redirects browser to backend Google OAuth flow
+// No axios call needed; the browser must follow the redirect for cookies/OAuth to work.
+export const loginWithGoogle = () => {
+  window.location.href = `${BASE_URL}/api/auth/google`;
+};
+ 
+/*
+  Future providers — add here:
+  export const loginWithGitHub    = () => { window.location.href = `${BASE_URL}/api/auth/github`; };
+  export const loginWithMicrosoft = () => { window.location.href = `${BASE_URL}/api/auth/microsoft`; };
+*/
+
 export default API;

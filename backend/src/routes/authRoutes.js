@@ -8,6 +8,10 @@ import {
   resetPassword
 } from "../controllers/authController.js";
 import { verifyToken } from "../middleware/authmiddleware.js";
+// ✅ NEW: Google OAuth imports
+import passport from "../config/passport.js";
+import { googleCallback } from "../controllers/googleAuthController.js";
+ 
 
 const router = express.Router();
 
@@ -42,5 +46,29 @@ router.post("/login", loginLimiter, loginUser);
 router.post("/forgot-password", forgotPasswordLimiter, forgotPassword);
 router.put("/reset-password/:token", resetPassword);
 router.get("/me", verifyToken, getMe);
+
+
+// ── NEW: Google OAuth routes ─────────────────────────────────────────────────
+// Step 1: Redirect to Google consent screen
+router.get(
+  "/google",
+  passport.authenticate("google", { scope: ["profile", "email"], session: false })
+);
+ 
+// Step 2: Google redirects back here → issue JWT → redirect to frontend
+router.get(
+  "/google/callback",
+  passport.authenticate("google", {
+    session: false,
+    failureRedirect: `${process.env.FRONTEND_URL}/login?error=google_auth_failed`,
+  }),
+  googleCallback
+);
+ 
+/*
+  Future GitHub (add here when ready):
+  router.get("/github", passport.authenticate("github", { scope: ["user:email"], session: false }));
+  router.get("/github/callback", passport.authenticate("github", { session: false, failureRedirect: "..." }), githubCallback);
+*/
 
 export default router;

@@ -17,19 +17,19 @@ import TicketPage from "./pages/TicketPage";
 import CheckInPage from "./pages/CheckInPage";
 import AppLoader from "./components/AppLoader";
 import { useAuth } from "./context/AuthContext";
+import AuthCallback from "./pages/AuthCallback";
+
 
 function App() {
-  const { loading } = useAuth();                      // ← add this
+  const { loading } = useAuth(); // ← add this
 
-  if (loading) return <AppLoader />;    
+  if (loading) return <AppLoader />;
   return (
     <BrowserRouter>
-
       {/* ✅ GLOBAL CHATBOT */}
       <Chatbot />
 
       <Routes>
-
         {/* Public Routes */}
         <Route path="/" element={<Home />} />
         <Route path="/register" element={<Register />} />
@@ -37,26 +37,37 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password/:token" element={<ResetPassword />} />
         <Route path="/events" element={<Events />} />
-        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          }
+        />
         <Route path="/events/:id" element={<EventDetail />} />
 
-        <Route
-  path="/ticket/:id"
-  element={
-    <ProtectedRoute roles={["student"]}>
-      <TicketPage />
-    </ProtectedRoute>
-  }
-/>
+                {/* ✅ NEW: OAuth callback — handles Google (and future GitHub, Microsoft etc.) */}
+        <Route path="/auth/callback" element={<AuthCallback />} />
 
-<Route
-  path="/dashboard/collegeadmin/check-in"
-  element={
-    <ProtectedRoute roles={["college_admin"]}>
-      <CheckInPage />
-    </ProtectedRoute>
-  }
-/>
+
+        <Route
+          path="/ticket/:id"
+          element={
+            <ProtectedRoute roles={["student"]}>
+              <TicketPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/dashboard/collegeadmin/check-in"
+          element={
+            <ProtectedRoute roles={["college_admin"]}>
+              <CheckInPage />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Student Dashboard */}
         <Route
@@ -97,7 +108,6 @@ function App() {
             </ProtectedRoute>
           }
         />
-
       </Routes>
     </BrowserRouter>
   );

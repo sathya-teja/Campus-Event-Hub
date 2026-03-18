@@ -50,9 +50,11 @@ export default function Navbar({ toggleSidebar, setSidebarOpen }) {
 }, [user?.id]);
 
   const avatarSrc =
-    user?.profileImage && !imgError
-      ? `${BASE_URL}/uploads/${user.profileImage}`
-      : null;
+  user?.profileImage && !imgError
+    ? user.profileImage.startsWith("http")
+      ? user.profileImage
+      : `${BASE_URL}/uploads/${user.profileImage}`
+    : null;
 
   const getDashboardPath = () => {
     switch (role) {

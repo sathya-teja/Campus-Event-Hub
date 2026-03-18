@@ -58,9 +58,13 @@ export default function Profile() {
   const initials = name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2);
 
   // Resolve avatar: local preview → saved server image → initials fallback
-  const savedImage = user?.profileImage ? `${BASE_URL}/uploads/${user.profileImage}` : null;
-  const avatarSrc  = imagePreview || savedImage;
-
+  const savedImage = user?.profileImage
+  ? user.profileImage.startsWith("http")
+    ? user.profileImage
+    : `${BASE_URL}/uploads/${user.profileImage}`
+  : null;
+// ✅ Fixed — treat empty string as no image
+const avatarSrc = imagePreview || savedImage || null;
   const formattedRole = role
     ? role.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
     : "Member";
