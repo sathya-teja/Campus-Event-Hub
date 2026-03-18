@@ -47,7 +47,10 @@ export default function StudentDashboard() {
         const allEvents     = eventsRes.data;
 
         const totalEvents      = allEvents.length;
-        const registeredEvents = registrations.length;
+        // With this:
+const registeredEvents = registrations.filter(
+  reg => reg.eventId && reg.status !== "rejected"
+).length;
 
         const upcomingEvents = registrations.filter((reg) => {
           const event = reg.eventId;
