@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import toast from "react-hot-toast";
 import { FiGrid, FiList, FiX, FiCalendar, FiMapPin, FiClock, FiSearch } from "react-icons/fi";
-import { QrCode, Download, Ticket, SlidersHorizontal, Check, AlertTriangle } from "lucide-react";
+import { QrCode, Download, Ticket, SlidersHorizontal, Check, AlertTriangle, Award } from "lucide-react";
 import QRCodeLib from "qrcode";
 
 import {
@@ -11,6 +11,7 @@ import {
   cancelRegistration,
   getImageUrl,
   getRegistrationQR,
+  BASE_URL,
 } from "../services/api";
 
 /* ── helpers ── */
@@ -23,11 +24,33 @@ function fmtTime(date) {
   return d.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit", hour12:true });
 }
 
+/* ── certificate download helper ── */
+async function triggerCertDownload(registrationId, eventTitle) {
+  const token = localStorage.getItem("token");
+  const res = await fetch(
+    `${BASE_URL}/api/certificates/${registrationId}/download`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) {
+    const json = await res.json().catch(() => ({}));
+    throw new Error(json.message || "Download failed");
+  }
+  const blob = await res.blob();
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href     = url;
+  a.download = `certificate_${(eventTitle || "event").replace(/\s+/g, "_")}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 /* ── constants ── */
 const STATUS_CONFIG = {
   approved: { label:"Approved", cls:"bg-emerald-50 text-emerald-700 border-emerald-200",   dot:"bg-emerald-500" },
-  pending:  { label:"Pending",  cls:"bg-amber-50  text-amber-700  border-amber-200",   dot:"bg-amber-400"  },
-  rejected: { label:"Rejected", cls:"bg-red-50    text-red-600    border-red-200",     dot:"bg-red-500"    },
+  pending:  { label:"Pending",  cls:"bg-amber-50  text-amber-700  border-amber-200",        dot:"bg-amber-400"  },
+  rejected: { label:"Rejected", cls:"bg-red-50    text-red-600    border-red-200",          dot:"bg-red-500"    },
 };
 const CAT_CONFIG = {
   Tech:     { cls:"bg-sky-50    text-sky-700",    dot:"bg-sky-500"    },
@@ -62,6 +85,7 @@ export default function MyRegistrations() {
   const [qrModal,       setQrModal]       = useState(null);
   const [qrDataUrl,     setQrDataUrl]     = useState(null);
   const [qrLoading,     setQrLoading]     = useState(false);
+  const [certLoading,   setCertLoading]   = useState({}); // { [regId]: bool }
 
   const activeFilterCount =
     (statusFilter !== "all" ? 1 : 0) + (catFilter !== "all" ? 1 : 0);
@@ -113,6 +137,20 @@ export default function MyRegistrations() {
     a.href = qrDataUrl;
     a.download = `qr_${qrModal.eventTitle.replace(/\s+/g,"_")}.png`;
     a.click();
+  };
+
+  /* certificate download */
+  const handleCertDownload = async (e, regId, eventTitle) => {
+    e.stopPropagation();
+    try {
+      setCertLoading(prev => ({ ...prev, [regId]: true }));
+      await triggerCertDownload(regId, eventTitle);
+      toast.success("Certificate downloaded!");
+    } catch (err) {
+      toast.error(err.message || "Failed to download certificate");
+    } finally {
+      setCertLoading(prev => ({ ...prev, [regId]: false }));
+    }
   };
 
   /* filter */
@@ -367,12 +405,14 @@ export default function MyRegistrations() {
       {viewMode === "grid" && filtered.length > 0 && (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((reg, i) => {
-            const ev = reg.eventId;
+            const ev      = reg.eventId;
             if (!ev) return null;
-            const status = STATUS_CONFIG[reg.status] || STATUS_CONFIG.pending;
-            const cat    = CAT_CONFIG[ev.category]   || { cls:"bg-gray-100 text-gray-600", dot:"bg-gray-400" };
-            const date   = ev.startDate ? fmtDate(ev.startDate) : null;
-            const time   = ev.startDate ? fmtTime(ev.startDate) : null;
+            const status  = STATUS_CONFIG[reg.status] || STATUS_CONFIG.pending;
+            const cat     = CAT_CONFIG[ev.category]   || { cls:"bg-gray-100 text-gray-600", dot:"bg-gray-400" };
+            const date    = ev.startDate ? fmtDate(ev.startDate) : null;
+            const time    = ev.startDate ? fmtTime(ev.startDate) : null;
+            const hasCert = reg.status === "approved" && reg.attended;
+
             return (
               <motion.div key={reg._id}
                 initial={{ opacity:0, y:20 }}
@@ -403,13 +443,13 @@ export default function MyRegistrations() {
 
                 {/* Body — fixed layout, equal height across cards */}
                 <div className="flex flex-col flex-1 p-4">
-                  {/* Title — always 2 lines max, no content below it grows */}
+                  {/* Title */}
                   <h3 className="font-semibold text-sm text-gray-900 line-clamp-2 leading-snug mb-3 cursor-pointer hover:text-blue-600 transition-colors"
                     onClick={() => navigate(`/events/${ev._id}`)}>
                     {ev.title}
                   </h3>
 
-                  {/* Meta — pushed to bottom of content area */}
+                  {/* Meta */}
                   <div className="mt-auto flex flex-col gap-1.5 mb-4">
                     {date && (
                       <span className="flex items-center gap-1.5 text-xs text-gray-500">
@@ -431,7 +471,7 @@ export default function MyRegistrations() {
                     )}
                   </div>
 
-                  {/* Actions — always at bottom, consistent */}
+                  {/* Actions */}
                   <div className="border-t border-gray-100 pt-3 flex items-center gap-2">
                     {reg.status === "approved" ? (
                       <>
@@ -443,10 +483,24 @@ export default function MyRegistrations() {
                           className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 text-xs font-semibold border border-gray-200 transition">
                           <Ticket size={12} /> Ticket
                         </button>
+                        {/* Certificate — icon-only button, only when attended */}
+                        {hasCert && (
+                          <button
+                            onClick={(e) => handleCertDownload(e, reg._id, ev.title)}
+                            disabled={certLoading[reg._id]}
+                            title="Download Certificate"
+                            className="flex items-center justify-center px-2.5 py-2 rounded-xl text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition disabled:opacity-60 flex-shrink-0"
+                          >
+                            {certLoading[reg._id]
+                              ? <span className="w-3.5 h-3.5 border-2 border-emerald-300 border-t-emerald-700 rounded-full animate-spin" />
+                              : <Award size={13} />
+                            }
+                          </button>
+                        )}
                         <button onClick={() => setConfirmId(reg._id)}
-                          className="flex items-center justify-center gap-1 px-2.5 py-2 rounded-xl text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 border border-red-200 hover:border-red-300 transition flex-shrink-0"
+                          className="flex items-center justify-center px-2.5 py-2 rounded-xl text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 border border-red-200 hover:border-red-300 transition flex-shrink-0"
                           title="Cancel registration">
-                          <FiX size={11} /> Cancel
+                          <FiX size={12} />
                         </button>
                       </>
                     ) : reg.status === "pending" ? (
@@ -472,12 +526,14 @@ export default function MyRegistrations() {
       {viewMode === "list" && filtered.length > 0 && (
         <div className="space-y-3">
           {filtered.map((reg, i) => {
-            const ev = reg.eventId;
+            const ev      = reg.eventId;
             if (!ev) return null;
             const status  = STATUS_CONFIG[reg.status] || STATUS_CONFIG.pending;
             const cat     = CAT_CONFIG[ev.category]   || { cls:"bg-gray-100 text-gray-600", dot:"bg-gray-400" };
             const date    = ev.startDate ? fmtDate(ev.startDate) : null;
             const time    = ev.startDate ? fmtTime(ev.startDate) : null;
+            const hasCert = reg.status === "approved" && reg.attended;
+
             return (
               <motion.div key={reg._id}
                 initial={{ opacity:0, x:-12 }}
@@ -541,6 +597,21 @@ export default function MyRegistrations() {
                             className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition">
                             <Ticket size={11} /> Ticket
                           </button>
+                          {/* Certificate — only when attended */}
+                          {hasCert && (
+                            <button
+                              onClick={(e) => handleCertDownload(e, reg._id, ev.title)}
+                              disabled={certLoading[reg._id]}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-emerald-700 border border-emerald-200 rounded-lg hover:bg-emerald-50 transition disabled:opacity-60"
+                              title="Download Certificate"
+                            >
+                              {certLoading[reg._id]
+                                ? <span className="w-3 h-3 border border-emerald-300 border-t-emerald-700 rounded-full animate-spin" />
+                                : <Award size={11} />
+                              }
+                              Cert
+                            </button>
+                          )}
                         </>
                       )}
                       {reg.status !== "rejected" && (

@@ -1,13 +1,15 @@
 import MyRegistrations from "./MyRegistrations";
+import MyCertificates from "./MyCertificates";
 import { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import Navbar from "../components/Navbar";
 import Sidebar from "../components/Sidebar";
 import QuickActions from "../components/QuickActions";
 import RecentEvents from "../components/RecentEvents";
 import { getMyRegistrations, getEvents } from "../services/api";
 import { useAuth } from "../context/AuthContext";
-import { FiList, FiCalendar, FiClock, FiCheckCircle, FiHome } from "react-icons/fi";
+import { FiList, FiCalendar, FiClock, FiCheckCircle, FiHome, FiAward } from "react-icons/fi";
 import { TrendingUp } from "lucide-react";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
@@ -22,6 +24,7 @@ function greeting() {
   if (h < 17) return { text: "Good afternoon", emoji: "🌤️" };
   return { text: "Good evening", emoji: "🌙" };
 }
+
 
 function AnimatedNumber({ value, loading }) {
   const [display, setDisplay] = useState(0);
@@ -49,8 +52,15 @@ const DonutLabel = ({ cx, cy, total }) => (
 );
 
 export default function StudentDashboard() {
-  const { user }   = useAuth();
-  const location   = useLocation();
+  const { user, logout } = useAuth();
+  const location         = useLocation();
+  const navigate         = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    toast.success("Logged out successfully");
+    navigate("/login");
+  };
   const [activeTab, setActiveTab]   = useState(location.state?.activeTab || "overview");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed]   = useState(false);
@@ -59,11 +69,12 @@ export default function StudentDashboard() {
   const [stats, setStats] = useState({
     totalEvents: 0, registeredEvents: 0,
     upcomingEvents: 0, completedEvents: 0, ongoingEvents: 0,
+    certificates: 0,
   });
   const [statsLoading, setStatsLoading] = useState(true);
 
   // ── Chart data state ──────────────────────────────────────────────────────
-  const [donutData,   setDonutData]   = useState([]);
+  const [donutData,    setDonutData]    = useState([]);
   const [categoryData, setCategoryData] = useState([]);
   const [timelineData, setTimelineData] = useState([]);
 
@@ -85,7 +96,13 @@ export default function StudentDashboard() {
           const event = reg.eventId;
           return event && new Date(event.startDate) <= now && new Date(event.endDate) >= now;
         }).length;
-        setStats({ totalEvents, registeredEvents, upcomingEvents, completedEvents, ongoingEvents });
+
+        // ── Certificates earned (approved + attended) ─────────────────────
+        const certificates = registrations.filter(
+          reg => reg.status === "approved" && reg.attended
+        ).length;
+
+        setStats({ totalEvents, registeredEvents, upcomingEvents, completedEvents, ongoingEvents, certificates });
 
         // ── Chart 1: Donut — status breakdown ─────────────────────────────
         const donut = [
@@ -136,10 +153,10 @@ export default function StudentDashboard() {
   const { text: greetText, emoji: greetEmoji } = greeting();
 
   const statCards = [
-    { title: "Total Events",  value: stats.totalEvents,      icon: <FiList size={18} />,        accent: "#2563eb", bg: "from-blue-50 to-blue-100/60",     iconBg: "bg-blue-600",    trend: "All available" },
-    { title: "Registered",    value: stats.registeredEvents, icon: <FiCalendar size={18} />,    accent: "#7c3aed", bg: "from-violet-50 to-violet-100/60", iconBg: "bg-violet-600",  trend: "Your events"   },
-    { title: "Upcoming",      value: stats.upcomingEvents,   icon: <FiClock size={18} />,       accent: "#d97706", bg: "from-amber-50 to-amber-100/60",   iconBg: "bg-amber-500",   trend: "Scheduled"     },
-    { title: "Completed",     value: stats.completedEvents,  icon: <FiCheckCircle size={18} />, accent: "#059669", bg: "from-emerald-50 to-emerald-100/60", iconBg: "bg-emerald-600", trend: "Attended"    },
+    { title: "Total Events",  value: stats.totalEvents,      icon: <FiList size={18} />,        accent: "#2563eb", bg: "from-blue-50 to-blue-100/60",       iconBg: "bg-blue-600",    trend: "All available" },
+    { title: "Registered",    value: stats.registeredEvents, icon: <FiCalendar size={18} />,    accent: "#7c3aed", bg: "from-violet-50 to-violet-100/60",   iconBg: "bg-violet-600",  trend: "Your events"   },
+    { title: "Upcoming",      value: stats.upcomingEvents,   icon: <FiClock size={18} />,       accent: "#d97706", bg: "from-amber-50 to-amber-100/60",     iconBg: "bg-amber-500",   trend: "Scheduled"     },
+    { title: "Certificates",  value: stats.certificates,     icon: <FiAward size={18} />,       accent: "#059669", bg: "from-emerald-50 to-emerald-100/60", iconBg: "bg-emerald-600", trend: "Earned"        },
   ];
 
   const hasRegistrations = stats.registeredEvents > 0;
@@ -159,15 +176,18 @@ export default function StudentDashboard() {
             collapsed={collapsed}
             setCollapsed={setCollapsed}
             items={[
-              { key: "overview", label: "Overview",         icon: <FiHome /> },
-              { key: "myevents", label: "My Registrations", icon: <FiList /> },
+              { key: "overview",      label: "Overview",          icon: <FiHome />  },
+              { key: "myevents",      label: "My Registrations",  icon: <FiList />  },
+              { key: "certificates",  label: "Certificates",      icon: <FiAward /> },
             ]}
+            onLogout={handleLogout}
           />
 
           <main
             className={`flex-1 overflow-y-auto transition-all duration-300 ${collapsed ? "md:ml-[68px]" : "md:ml-64"}`}
             style={{ background: "linear-gradient(160deg, #f0f4ff 0%, #f8fafc 50%, #f0fdf4 100%)" }}
           >
+            {/* ══ OVERVIEW ══ */}
             {activeTab === "overview" && (
               <div className="p-5 sm:p-8 space-y-6 dash-fade-in">
 
@@ -198,6 +218,14 @@ export default function StudentDashboard() {
                           <span className="text-xs font-semibold text-white">{stats.ongoingEvents} live now</span>
                         </div>
                       )}
+                      {!statsLoading && stats.certificates > 0 && (
+                        <div className="flex items-center gap-2 bg-white/15 border border-white/20 backdrop-blur-sm rounded-2xl px-4 py-2">
+                          <FiAward size={13} className="text-yellow-300" />
+                          <span className="text-xs font-semibold text-white">
+                            {stats.certificates} certificate{stats.certificates !== 1 ? "s" : ""} earned
+                          </span>
+                        </div>
+                      )}
                       {!statsLoading && stats.totalEvents > 0 && (
                         <div className="flex items-center gap-2 bg-white/15 border border-white/20 backdrop-blur-sm rounded-2xl px-4 py-2">
                           <TrendingUp size={13} className="text-green-300" />
@@ -216,7 +244,11 @@ export default function StudentDashboard() {
                     [...Array(4)].map((_, i) => <div key={i} className="h-32 rounded-2xl bg-white/70 animate-pulse border border-gray-100 shadow-sm" />)
                   ) : (
                     statCards.map((card, i) => (
-                      <div key={i} className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${card.bg} border border-white/80 shadow-sm dash-card`} style={{ animationDelay: `${i * 80}ms` }}>
+                      <div
+                        key={i}
+                        className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${card.bg} border border-white/80 shadow-sm dash-card`}
+                        style={{ animationDelay: `${i * 80}ms` }}
+                      >
                         <div className="absolute -bottom-4 -right-4 w-20 h-20 rounded-full opacity-20" style={{ background: card.accent }} />
                         <div className="relative p-5">
                           <div className="flex items-center justify-between mb-3">
@@ -351,6 +383,7 @@ export default function StudentDashboard() {
               </div>
             )}
 
+            {/* ══ MY REGISTRATIONS ══ */}
             {activeTab === "myevents" && (
               <div className="p-5 sm:p-8 dash-fade-in">
                 <div className="mb-6">
@@ -360,6 +393,14 @@ export default function StudentDashboard() {
                 <MyRegistrations />
               </div>
             )}
+
+            {/* ══ CERTIFICATES ══ */}
+            {activeTab === "certificates" && (
+              <div className="p-5 sm:p-8 dash-fade-in">
+                <MyCertificates />
+              </div>
+            )}
+
           </main>
         </div>
       </div>

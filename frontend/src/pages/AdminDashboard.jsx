@@ -1,11 +1,14 @@
 // AdminDashboard.jsx
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback, useRef } from "react";
+import toast from "react-hot-toast";
 import { getMyEvents, createEvent, updateEvent, deleteEvent, getImageUrl, getEventRegistrations, getAllRegistrations, approveRegistration, rejectRegistration, getAllUsers, getMyEventStudents, exportRegistrationsCSV, exportRegistrationsExcel, exportRegistrationsPDF, exportRegistrationsJSON, exportAllRegistrationsCSV, exportAllRegistrationsExcel, exportAllRegistrationsPDF, exportAllRegistrationsJSON, getEventAttendance, scanAttendanceQR } from "../services/api";
 import Navbar from "../components/Navbar";
 import StatsCard from "../components/StatsCard";
 import Sidebar from "../components/Sidebar";
 import EventCard from "../components/EventCard";
+import { useAuth } from "../context/AuthContext";
+
 import {
   FiUsers,
   FiFileText,
@@ -39,6 +42,7 @@ import {
   FiClock,
   FiPercent,
 } from "react-icons/fi";
+
 
 const EVENTS_PER_PAGE = 6;
 const CATEGORIES = ["Tech", "Cultural", "Sports", "Workshop"];
@@ -113,6 +117,14 @@ function inputCls(error) {
 ================================================ */
 export default function AdminDashboard() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    toast.success("Logged out successfully");
+    navigate("/login");
+  };
   const [activeTab, setActiveTab] = useState(
     location.state?.activeTab || "overview"
   );
@@ -140,6 +152,7 @@ export default function AdminDashboard() {
             { key: "attendance", label: "Attendance", icon: <FiActivity /> },
             { key: "logs", label: "Admin Logs", icon: <FiFileText /> },
           ]}
+          onLogout={handleLogout}
         />
 
         <main

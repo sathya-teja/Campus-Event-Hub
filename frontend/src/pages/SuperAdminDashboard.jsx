@@ -11,9 +11,21 @@ import {
   FiFileText,
 } from "react-icons/fi";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import toast from "react-hot-toast";
 import API from "../services/api";
 
 export default function SuperAdminDashboard() {
+  const { logout } = useAuth();
+  const navigate   = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    toast.success("Logged out successfully");
+    navigate("/login");
+  };
+
   const [activeTab, setActiveTab] = useState("overview");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -38,6 +50,7 @@ export default function SuperAdminDashboard() {
             { key: "settings", label: "Platform Settings", icon: <FiSettings /> },
             { key: "logs", label: "System Logs", icon: <FiFileText /> },
           ]}
+          onLogout={handleLogout}
         />
 
         <main
