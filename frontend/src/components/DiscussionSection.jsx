@@ -193,7 +193,7 @@ function EmojiPicker({ onSelect, onClose, openUp = false }) {
   return (
     <div
       ref={ref}
-      className={`absolute ${openUp ? "bottom-full mb-2" : "top-full mt-2"} left-0 z-50 bg-white border border-gray-200 rounded-2xl shadow-xl w-72 overflow-hidden`}
+      className={`absolute ${openUp ? "bottom-full mb-2" : "top-full mt-2"} left-0 z-50 bg-white border border-gray-200 rounded-2xl shadow-xl w-[calc(100vw-2rem)] max-w-[288px] overflow-hidden`}
     >
       {/* Tab strip */}
       <div className="flex border-b border-gray-100 overflow-x-auto">
@@ -482,12 +482,19 @@ function LikeButton({ discussionId, initialLikes = [], currentUser }) {
 /* ─────────────────────────────────────────────
    REPLY CARD
 ───────────────────────────────────────────── */
-function ReplyCard({ reply, discussionId, currentUser, isEventAdmin, onReplyUpdated, onReplyDeleted }) {
+function ReplyCard({ reply, discussionId, currentUser, isEventAdmin, eventAdminId, onReplyUpdated, onReplyDeleted }) {
   const [editing,  setEditing]  = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const isOwner = currentUser && reply.userId?._id === currentUser._id;
   const canAct  = isOwner || isEventAdmin;
+
+  // Only show Organizer badge if this reply is from the actual event organizer
+  const resolveId = (id) => (typeof id === "object" ? id?._id?.toString?.() ?? id?.toString?.() : id);
+  const isThisEventOrganizer =
+    reply.userId?.role === "college_admin" &&
+    eventAdminId &&
+    resolveId(reply.userId?._id) === resolveId(eventAdminId);
 
   const handleSaveEdit = async (message) => {
     try {
@@ -508,15 +515,17 @@ function ReplyCard({ reply, discussionId, currentUser, isEventAdmin, onReplyUpda
   };
 
   return (
-    <motion.div initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} className="flex gap-2.5 group">
-      <FiCornerDownRight size={13} className="text-gray-300 flex-shrink-0 mt-2" />
+    <motion.div initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} className="flex gap-1.5 sm:gap-2.5 group">
+      <FiCornerDownRight size={12} className="text-gray-300 flex-shrink-0 mt-2 hidden sm:block" />
       <Avatar user={reply.userId} size="w-6 h-6" textSize="text-[10px]" />
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-          <span className="text-xs font-semibold text-gray-800">{reply.userId?.name || "Unknown"}</span>
-          <RoleBadge role={reply.userId?.role} />
-          <span className="text-[10px] text-gray-400">{timeAgo(reply.createdAt)}</span>
-          {reply.isEdited && <span className="text-[10px] text-gray-400 italic">(edited)</span>}
+        <div className="flex items-start justify-between gap-1 mb-0.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs font-semibold text-gray-800">{reply.userId?.name || "Unknown"}</span>
+            <RoleBadge role={isThisEventOrganizer ? reply.userId?.role : null} />
+            <span className="text-[10px] text-gray-400">{timeAgo(reply.createdAt)}</span>
+            {reply.isEdited && <span className="text-[10px] text-gray-400 italic hidden sm:inline">(edited)</span>}
+          </div>
         </div>
 
         {editing ? (
@@ -531,16 +540,18 @@ function ReplyCard({ reply, discussionId, currentUser, isEventAdmin, onReplyUpda
         )}
 
         {canAct && !editing && (
-          <div className="flex gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex gap-2 mt-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
             {isOwner && (
               <button onClick={() => setEditing(true)}
                 className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-blue-600 transition">
-                <FiEdit2 size={10} /> Edit
+                <FiEdit2 size={10} />
+                <span className="hidden sm:inline">Edit</span>
               </button>
             )}
             <button onClick={handleDelete} disabled={deleting}
               className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-red-500 transition disabled:opacity-50">
-              <FiTrash2 size={10} /> {deleting ? "..." : "Delete"}
+              <FiTrash2 size={10} />
+              <span className="hidden sm:inline">{deleting ? "..." : "Delete"}</span>
             </button>
           </div>
         )}
@@ -552,7 +563,7 @@ function ReplyCard({ reply, discussionId, currentUser, isEventAdmin, onReplyUpda
 /* ─────────────────────────────────────────────
    MESSAGE CARD
 ───────────────────────────────────────────── */
-function MessageCard({ discussion, currentUser, isEventAdmin, onUpdated, onDeleted }) {
+function MessageCard({ discussion, currentUser, isEventAdmin, eventAdminId, onUpdated, onDeleted }) {
   const [showReplies,   setShowReplies]   = useState(false);
   const [replies,       setReplies]       = useState(discussion.replies || []);
   const [replyInput,    setReplyInput]    = useState("");
@@ -564,6 +575,14 @@ function MessageCard({ discussion, currentUser, isEventAdmin, onUpdated, onDelet
 
   const isOwner = currentUser && discussion.userId?._id === currentUser._id;
   const canAct  = isOwner || isEventAdmin;
+
+  // Only the actual event organizer gets the amber highlight and Organizer badge
+  // A college admin from another college is treated visually like a regular user
+  const resolveId = (id) => (typeof id === "object" ? id?._id?.toString?.() ?? id?.toString?.() : id);
+  const isThisEventOrganizer =
+    discussion.userId?.role === "college_admin" &&
+    eventAdminId &&
+    resolveId(discussion.userId?._id) === resolveId(eventAdminId);
 
   const handleSaveEdit = async (message) => {
     try {
@@ -601,27 +620,50 @@ function MessageCard({ discussion, currentUser, isEventAdmin, onUpdated, onDelet
     finally { setReplyLoading(false); }
   };
 
+  const isAdminMessage = isThisEventOrganizer;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5 group"
+      className={`rounded-2xl border shadow-sm p-3 sm:p-5 group transition-colors ${
+        isAdminMessage
+          ? "bg-amber-50/40 border-amber-200 border-l-4 border-l-amber-400"
+          : "bg-white border-gray-100"
+      }`}
     >
-      <div className="flex items-start gap-3">
-        <Avatar user={discussion.userId} size="w-9 h-9" textSize="text-sm" />
+      <div className="flex items-start gap-2 sm:gap-3">
+        <Avatar user={discussion.userId} size="w-8 h-8 sm:w-9 sm:h-9" textSize="text-sm" />
 
         <div className="flex-1 min-w-0">
           {/* Header */}
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="text-sm font-semibold text-gray-900">{discussion.userId?.name || "Unknown"}</span>
-            <RoleBadge role={discussion.userId?.role} />
-            {discussion.userId?.college && (
-              <span className="text-[11px] text-gray-400 truncate">{discussion.userId.college}</span>
-            )}
-            <span className="text-[11px] text-gray-400 ml-auto">{timeAgo(discussion.createdAt)}</span>
-            {discussion.isEdited && (
-              <span className="text-[10px] text-gray-400 italic">(edited)</span>
-            )}
+          <div className="flex items-start justify-between gap-1 mb-1">
+            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+              <span className="text-sm font-semibold text-gray-900 truncate">
+                {discussion.userId?.name || "Unknown"}
+              </span>
+              <RoleBadge role={discussion.userId?.role} />
+              {/* Only show college for students — admins are already identified by RoleBadge */}
+              {!isAdminMessage && discussion.userId?.college && (
+                <span className="text-[11px] text-gray-400 truncate hidden sm:inline">
+                  {discussion.userId.college}
+                </span>
+              )}
+              {/* On mobile, show compact organizer tag since RoleBadge may be small */}
+              {isAdminMessage && (
+                <span className="sm:hidden text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-full">
+                  Organizer
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <span className="text-[11px] text-gray-400 whitespace-nowrap">
+                {timeAgo(discussion.createdAt)}
+              </span>
+              {discussion.isEdited && (
+                <span className="text-[10px] text-gray-400 italic hidden sm:inline">(edited)</span>
+              )}
+            </div>
           </div>
 
           {/* Message body */}
@@ -634,14 +676,16 @@ function MessageCard({ discussion, currentUser, isEventAdmin, onUpdated, onDelet
               onCancel={() => setEditing(false)}
             />
           ) : (
-            <p className="text-sm text-gray-700 leading-relaxed break-words whitespace-pre-wrap">
+            <p className={`text-sm leading-relaxed break-words whitespace-pre-wrap ${
+              isAdminMessage ? "text-gray-800" : "text-gray-700"
+            }`}>
               {discussion.message}
             </p>
           )}
 
           {/* Actions row */}
           {!editing && (
-            <div className="flex items-center gap-3 mt-2.5 flex-wrap">
+            <div className="flex items-center gap-2 mt-2.5 flex-wrap">
 
               {/* Like */}
               <LikeButton
@@ -650,6 +694,8 @@ function MessageCard({ discussion, currentUser, isEventAdmin, onUpdated, onDelet
                 currentUser={currentUser}
               />
 
+              <span className="w-px h-3 bg-gray-200" />
+
               {/* Reply toggle */}
               {currentUser && (
                 <button
@@ -657,7 +703,7 @@ function MessageCard({ discussion, currentUser, isEventAdmin, onUpdated, onDelet
                   className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-600 transition font-medium"
                 >
                   <FiCornerDownRight size={12} />
-                  Reply
+                  <span>Reply</span>
                 </button>
               )}
 
@@ -672,21 +718,27 @@ function MessageCard({ discussion, currentUser, isEventAdmin, onUpdated, onDelet
                 </button>
               )}
 
-              {/* Edit / Delete — shown on hover */}
+              {/* Edit / Delete
+                  — desktop: hidden until hover (opacity-0 group-hover:opacity-100)
+                  — mobile:  always visible (touch devices have no hover)        */}
               {canAct && (
-                <div className="flex gap-2 ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex gap-1.5 ml-auto opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                   {isOwner && !confirmDelete && (
-                    <button onClick={() => setEditing(true)}
-                      className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-blue-600 transition">
-                      <FiEdit2 size={10} /> Edit
+                    <button
+                      onClick={() => setEditing(true)}
+                      className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-blue-600 transition px-1.5 py-0.5 rounded"
+                    >
+                      <FiEdit2 size={10} />
+                      <span className="hidden sm:inline">Edit</span>
                     </button>
                   )}
                   {!confirmDelete ? (
                     <button
                       onClick={() => setConfirmDelete(true)}
-                      className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-red-500 transition"
+                      className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-red-500 transition px-1.5 py-0.5 rounded"
                     >
-                      <FiTrash2 size={10} /> Delete
+                      <FiTrash2 size={10} />
+                      <span className="hidden sm:inline">Delete</span>
                     </button>
                   ) : (
                     <div className="flex items-center gap-1.5">
@@ -696,7 +748,7 @@ function MessageCard({ discussion, currentUser, isEventAdmin, onUpdated, onDelet
                         disabled={deleting}
                         className="text-[11px] font-semibold text-red-600 hover:text-red-700 transition disabled:opacity-50"
                       >
-                        {deleting ? "Deleting..." : "Yes"}
+                        {deleting ? "..." : "Yes"}
                       </button>
                       <button
                         onClick={() => setConfirmDelete(false)}
@@ -718,10 +770,12 @@ function MessageCard({ discussion, currentUser, isEventAdmin, onUpdated, onDelet
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: "auto" }}
                 exit={{ opacity: 0, height: 0 }}
-                className="mt-3 flex gap-2 items-start overflow-hidden"
+                className="mt-3 flex gap-2 items-center overflow-hidden"
               >
-                <Avatar user={currentUser} size="w-6 h-6" textSize="text-[10px]" />
-                <div className="flex-1">
+                <div className="hidden sm:block flex-shrink-0">
+                  <Avatar user={currentUser} size="w-6 h-6" textSize="text-[10px]" />
+                </div>
+                <div className="flex-1 min-w-0">
                   <MessageInput
                     value={replyInput}
                     onChange={setReplyInput}
@@ -753,6 +807,7 @@ function MessageCard({ discussion, currentUser, isEventAdmin, onUpdated, onDelet
                     discussionId={discussion._id}
                     currentUser={currentUser}
                     isEventAdmin={isEventAdmin}
+                    eventAdminId={eventAdminId}
                     onReplyUpdated={(updated) =>
                       setReplies((prev) => prev.map((r) => r._id === updated._id ? updated : r))
                     }
@@ -856,18 +911,21 @@ export default function DiscussionSection({ eventId, eventAdminId }) {
           </div>
         </div>
         {!user && (
-          <span className="text-xs text-gray-400 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-full">
-            Login to participate
+          <span className="text-xs text-gray-400 bg-gray-50 border border-gray-200 px-2.5 py-1.5 rounded-full whitespace-nowrap">
+            <span className="hidden sm:inline">Login to participate</span>
+            <span className="sm:hidden">Login to join</span>
           </span>
         )}
       </div>
 
       {/* Post input */}
       {user && (
-        <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/50">
-          <div className="flex gap-3 items-start">
-            <Avatar user={user} size="w-9 h-9" textSize="text-sm" />
-            <div className="flex-1">
+        <div className="px-3 sm:px-5 py-4 border-b border-gray-100 bg-gray-50/50">
+          <div className="flex gap-2 sm:gap-3 items-start">
+            <div className="hidden sm:block flex-shrink-0">
+              <Avatar user={user} size="w-9 h-9" textSize="text-sm" />
+            </div>
+            <div className="flex-1 min-w-0">
               <MessageInput
                 value={newMessage}
                 onChange={setNewMessage}
@@ -878,7 +936,9 @@ export default function DiscussionSection({ eventId, eventAdminId }) {
                 rows={2}
               />
               <p className="text-[11px] text-gray-400 mt-1.5">
-                Press Enter to post · Shift+Enter for new line · Use the smile icon to insert an emoji
+                <span className="hidden sm:inline">Press Enter to post · Shift+Enter for new line · </span>
+                <span className="sm:hidden">Enter to post · </span>
+                Use the smile icon to insert an emoji
               </p>
             </div>
           </div>
@@ -889,7 +949,7 @@ export default function DiscussionSection({ eventId, eventAdminId }) {
       <div className="divide-y divide-gray-50">
 
         {loading && (
-          <div className="p-5 space-y-4">
+          <div className="p-3 sm:p-5 space-y-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="flex gap-3 animate-pulse">
                 <div className="w-9 h-9 rounded-full bg-gray-100 flex-shrink-0" />
@@ -930,7 +990,7 @@ export default function DiscussionSection({ eventId, eventAdminId }) {
         )}
 
         {!loading && !error && discussions.length > 0 && (
-          <div className="p-5 space-y-4">
+          <div className="p-3 sm:p-5 space-y-3 sm:space-y-4">
             <AnimatePresence initial={false}>
               {discussions.map((d) => (
                 <MessageCard
@@ -938,6 +998,7 @@ export default function DiscussionSection({ eventId, eventAdminId }) {
                   discussion={d}
                   currentUser={user}
                   isEventAdmin={isEventAdmin}
+                  eventAdminId={eventAdminId}
                   onUpdated={(updated) =>
                     setDiscussions((prev) => prev.map((x) => x._id === updated._id ? updated : x))
                   }
