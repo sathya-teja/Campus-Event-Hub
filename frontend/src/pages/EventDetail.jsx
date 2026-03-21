@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getEventById, getImageUrl, registerForEvent, getMyRegistrations } from "../services/api";
+import DiscussionSection from "../components/DiscussionSection";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 import Navbar from "../components/Navbar";
@@ -24,6 +25,8 @@ import {
   FiMaximize,
   FiLink,
   FiMessageSquare,
+  FiInfo,
+  FiStar,
 } from "react-icons/fi";
 
 
@@ -97,7 +100,10 @@ export default function EventDetail() {
   const [registrationId, setRegistrationId] = useState(null);
   const [registerLoading,setRegisterLoading]= useState(false);
   const [copied,         setCopied]         = useState(false);
-  
+
+  // Tab state — overview | discussion | reviews
+  const [activeTab, setActiveTab] = useState("overview");
+
   // New state variables for improvements
   const [registrationStatus, setRegistrationStatus] = useState(null);
   const [timeLeft, setTimeLeft] = useState(null);
@@ -443,141 +449,211 @@ export default function EventDetail() {
             {/* ── Left: Main content ── */}
             <div className="lg:col-span-2 space-y-6">
 
-              {/* About */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7"
-              >
-                <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                  <span className="w-1 h-5 rounded-full bg-blue-600 inline-block" />
-                  About This Event
-                </h2>
-                <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-line">
-                  {event.description}
-                </p>
-              </motion.div>
+              {/* ── Tab Bar ── */}
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div className="flex border-b border-gray-100">
+                  {[
+                    { key: "overview",   label: "Overview",   icon: <FiInfo size={15} /> },
+                    { key: "discussion", label: "Discussion",  icon: <FiMessageSquare size={15} /> },
+                    { key: "reviews",    label: "Reviews",     icon: <FiStar size={15} /> },
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`flex-1 flex items-center justify-center gap-2 px-4 py-3.5 text-sm font-semibold transition-all border-b-2 ${
+                        activeTab === tab.key
+                          ? "border-blue-600 text-blue-600 bg-blue-50/50"
+                          : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      <span className={activeTab === tab.key ? "text-blue-600" : "text-gray-400"}>
+                        {tab.icon}
+                      </span>
+                      <span className="hidden sm:inline">{tab.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-              {/* Date & Time */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.05 }}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7"
-              >
-                <h2 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-2">
-                  <span className="w-1 h-5 rounded-full bg-blue-600 inline-block" />
-                  Date & Time
-                </h2>
+              {/* ══════════════════════════════
+                  OVERVIEW TAB — all existing content
+              ══════════════════════════════ */}
+              {activeTab === "overview" && (
+                <>
+                  {/* About */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4 }}
+                    className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7"
+                  >
+                    <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                      <span className="w-1 h-5 rounded-full bg-blue-600 inline-block" />
+                      About This Event
+                    </h2>
+                    <p className="text-gray-600 text-sm leading-relaxed whitespace-pre-line">
+                      {event.description}
+                    </p>
+                  </motion.div>
 
-                <div className="flex flex-col sm:flex-row gap-4">
-                  {/* Start */}
-                  <div className="flex-1 flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                    <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center flex-shrink-0">
-                      <FiCalendar size={17} />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">
-                        {isSameDay ? "Event Date" : "Start Date"}
-                      </p>
-                      <p className="text-sm font-semibold text-gray-900">{startFmt}</p>
-                      {startTimeStr && (
-                        <p className="text-xs text-blue-600 font-semibold mt-1 flex items-center gap-1">
-                          <FiClock size={11} /> {startTimeStr}
-                        </p>
+                  {/* Date & Time */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.05 }}
+                    className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7"
+                  >
+                    <h2 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-2">
+                      <span className="w-1 h-5 rounded-full bg-blue-600 inline-block" />
+                      Date & Time
+                    </h2>
+
+                    <div className="flex flex-col sm:flex-row gap-4">
+                      {/* Start */}
+                      <div className="flex-1 flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                        <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center flex-shrink-0">
+                          <FiCalendar size={17} />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">
+                            {isSameDay ? "Event Date" : "Start Date"}
+                          </p>
+                          <p className="text-sm font-semibold text-gray-900">{startFmt}</p>
+                          {startTimeStr && (
+                            <p className="text-xs text-blue-600 font-semibold mt-1 flex items-center gap-1">
+                              <FiClock size={11} /> {startTimeStr}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* End (multi-day) */}
+                      {!isSameDay && (
+                        <div className="flex-1 flex items-start gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                          <div className="w-10 h-10 rounded-xl bg-gray-600 text-white flex items-center justify-center flex-shrink-0">
+                            <FiClock size={17} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">End Date</p>
+                            <p className="text-sm font-semibold text-gray-900">{endFmt}</p>
+                            {endTimeStr && (
+                              <p className="text-xs text-gray-500 font-semibold mt-1 flex items-center gap-1">
+                                <FiClock size={11} /> {endTimeStr}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Same-day end time block */}
+                      {isSameDay && endTimeStr && endTimeStr !== startTimeStr && (
+                        <div className="flex-1 flex items-start gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                          <div className="w-10 h-10 rounded-xl bg-gray-500 text-white flex items-center justify-center flex-shrink-0">
+                            <FiClock size={17} />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">End Time</p>
+                            <p className="text-sm font-semibold text-gray-900">{endTimeStr}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">Same day</p>
+                          </div>
+                        </div>
                       )}
                     </div>
-                  </div>
+                  </motion.div>
 
-                  {/* End (multi-day) */}
-                  {!isSameDay && (
-                    <div className="flex-1 flex items-start gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                      <div className="w-10 h-10 rounded-xl bg-gray-600 text-white flex items-center justify-center flex-shrink-0">
-                        <FiClock size={17} />
+                  {/* Location */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.1 }}
+                    className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7"
+                  >
+                    <h2 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-2">
+                      <span className="w-1 h-5 rounded-full bg-blue-600 inline-block" />
+                      Location
+                    </h2>
+                    <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                      <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
+                        <FiMapPin size={17} />
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">End Date</p>
-                        <p className="text-sm font-semibold text-gray-900">{endFmt}</p>
-                        {endTimeStr && (
-                          <p className="text-xs text-gray-500 font-semibold mt-1 flex items-center gap-1">
-                            <FiClock size={11} /> {endTimeStr}
-                          </p>
+                        <p className="text-sm font-semibold text-gray-900">{event.location}</p>
+                        {event.createdBy?.college && (
+                          <p className="text-xs text-gray-500 mt-0.5">{event.createdBy.college}</p>
                         )}
                       </div>
                     </div>
-                  )}
+                  </motion.div>
 
-                  {/* Same-day end time block */}
-                  {isSameDay && endTimeStr && endTimeStr !== startTimeStr && (
-                    <div className="flex-1 flex items-start gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                      <div className="w-10 h-10 rounded-xl bg-gray-500 text-white flex items-center justify-center flex-shrink-0">
-                        <FiClock size={17} />
+                  {/* Organizer */}
+                  {(event.createdBy?.name || event.createdBy?.college) && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.4, delay: 0.15 }}
+                      className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7"
+                    >
+                      <h2 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-2">
+                        <span className="w-1 h-5 rounded-full bg-blue-600 inline-block" />
+                        Organizer
+                      </h2>
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-lg flex-shrink-0">
+                          {(event.createdBy?.college || event.createdBy?.name || "?")[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900 text-sm">
+                            {event.createdBy?.college || event.createdBy?.name}
+                          </p>
+                          {event.createdBy?.name && event.createdBy?.college && (
+                            <p className="text-xs text-gray-500 mt-0.5">{event.createdBy.name}</p>
+                          )}
+                          <span className="inline-flex items-center gap-1 mt-1.5 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                            <FiCheckCircle size={10} /> Verified Organizer
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">End Time</p>
-                        <p className="text-sm font-semibold text-gray-900">{endTimeStr}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">Same day</p>
-                      </div>
-                    </div>
+                    </motion.div>
                   )}
-                </div>
-              </motion.div>
+                </>
+              )}
 
-              {/* Location */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.1 }}
-                className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7"
-              >
-                <h2 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-2">
-                  <span className="w-1 h-5 rounded-full bg-blue-600 inline-block" />
-                  Location
-                </h2>
-                <div className="flex items-start gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                  <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
-                    <FiMapPin size={17} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{event.location}</p>
-                    {event.createdBy?.college && (
-                      <p className="text-xs text-gray-500 mt-0.5">{event.createdBy.college}</p>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Organizer */}
-              {(event.createdBy?.name || event.createdBy?.college) && (
+              {/* ══════════════════════════════
+                  DISCUSSION TAB
+              ══════════════════════════════ */}
+              {activeTab === "discussion" && (
                 <motion.div
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.15 }}
-                  className="bg-white rounded-2xl border border-gray-100 shadow-sm p-7"
+                  transition={{ duration: 0.3 }}
                 >
-                  <h2 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-2">
-                    <span className="w-1 h-5 rounded-full bg-blue-600 inline-block" />
-                    Organizer
-                  </h2>
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-lg flex-shrink-0">
-                      {(event.createdBy?.college || event.createdBy?.name || "?")[0].toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="font-semibold text-gray-900 text-sm">
-                        {event.createdBy?.college || event.createdBy?.name}
-                      </p>
-                      {event.createdBy?.name && event.createdBy?.college && (
-                        <p className="text-xs text-gray-500 mt-0.5">{event.createdBy.name}</p>
-                      )}
-                      <span className="inline-flex items-center gap-1 mt-1.5 text-[11px] font-semibold text-green-700 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-                        <FiCheckCircle size={10} /> Verified Organizer
-                      </span>
-                    </div>
-                  </div>
+                  <DiscussionSection
+                    eventId={event._id}
+                    eventAdminId={event.createdBy?._id}
+                  />
                 </motion.div>
               )}
+
+              {/* ══════════════════════════════
+                  REVIEWS TAB — placeholder for teammate
+              ══════════════════════════════ */}
+              {activeTab === "reviews" && (
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center"
+                >
+                  <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-4">
+                    <span className="text-3xl">⭐</span>
+                  </div>
+                  <p className="text-gray-700 font-semibold text-base mb-1">Reviews coming soon</p>
+                  <p className="text-gray-400 text-sm max-w-xs mx-auto">
+                    Attended students will be able to rate and review this event after it ends.
+                  </p>
+                </motion.div>
+              )}
+
             </div>
 
             {/* ── Right: Sidebar ── */}

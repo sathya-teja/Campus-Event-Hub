@@ -13,6 +13,7 @@ import registrationRoutes from "./src/routes/registrationRoutes.js";
 import compression from "compression";      // ← add this
 import passport from "./src/config/passport.js";
 import certificateRoutes from "./src/routes/certificateRoutes.js";
+import discussionRoutes from "./src/routes/discussionRoutes.js";
 
 
 
@@ -81,6 +82,7 @@ app.use("/api/chat", chatRoutes);
 app.use("/api/events", eventRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/registrations", registrationRoutes);
+app.use("/api/discussions", discussionRoutes);
 app.use("/api/certificates", certificateRoutes);
 
 

@@ -131,4 +131,15 @@ export const loginWithGoogle = () => {
   export const loginWithMicrosoft = () => { window.location.href = `${BASE_URL}/api/auth/microsoft`; };
 */
 
+
+// Discussion APIs
+export const getDiscussions    = (eventId, page) => API.get(`/discussions/event/${eventId}?page=${page}`);
+export const postDiscussion    = (data)           => API.post("/discussions", data);
+export const editDiscussion    = (id, data)       => API.put(`/discussions/${id}`, data);
+export const deleteDiscussion  = (id)             => API.delete(`/discussions/${id}`);
+export const addDiscussionReply    = (id, data)           => API.post(`/discussions/${id}/reply`, data);
+export const editDiscussionReply   = (id, replyId, data)  => API.put(`/discussions/${id}/reply/${replyId}`, data);
+export const deleteDiscussionReply = (id, replyId)        => API.delete(`/discussions/${id}/reply/${replyId}`);
+export const getDiscussionStats    = (eventId)            => API.get(`/discussions/event/${eventId}/stats`);
+
 export default API;
