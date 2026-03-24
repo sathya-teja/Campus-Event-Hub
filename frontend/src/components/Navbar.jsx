@@ -139,6 +139,19 @@ export default function Navbar({ toggleSidebar, setSidebarOpen }) {
           >
             <FiCalendar size={15} /> Events
           </button>
+          {/* Dashboard link — only show if user is logged in */}
+          {!isGuest && (
+            <button
+              onClick={() => navigate(getDashboardPath())}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
+                location.pathname.startsWith("/dashboard") 
+                  ? "bg-blue-50 text-blue-700 font-semibold" 
+                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              }`}
+            >
+              <FiLayout size={15} /> Dashboard
+            </button>
+          )}
         </nav>
 
         {/* RIGHT */}
@@ -226,14 +239,17 @@ export default function Navbar({ toggleSidebar, setSidebarOpen }) {
                   {[
                     { path: "/",       icon: <FiHome size={14} />,     label: "Home" },
                     { path: "/events", icon: <FiCalendar size={14} />, label: "Events" },
+                    { path: getDashboardPath(), icon: <FiLayout size={14} />, label: "Dashboard" },
                   ].map(({ path, icon, label }) => (
                     <button
                       key={path}
                       onClick={() => { navigate(path); setOpen(false); }}
                       className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm transition mb-0.5
-                        ${isActive(path) ? "bg-blue-50 text-blue-700 font-semibold" : "text-gray-700 hover:bg-gray-100"}`}
+                        ${isActive(path) || (label === "Dashboard" && location.pathname.startsWith("/dashboard"))
+                          ? "bg-blue-50 text-blue-700 font-semibold" 
+                          : "text-gray-700 hover:bg-gray-100"}`}
                     >
-                      <span className={isActive(path) ? "text-blue-600" : "text-gray-400"}>{icon}</span>
+                      <span className={isActive(path) || (label === "Dashboard" && location.pathname.startsWith("/dashboard")) ? "text-blue-600" : "text-gray-400"}>{icon}</span>
                       {label}
                     </button>
                   ))}
@@ -241,23 +257,17 @@ export default function Navbar({ toggleSidebar, setSidebarOpen }) {
 
                 {/* ── Menu items ── */}
                 <div className="px-2 py-2">
-                  {[
-                    { path: "/profile",         icon: <FiUser size={14} />,   label: "Profile" },
-                    { path: getDashboardPath(), icon: <FiLayout size={14} />, label: "Dashboard" },
-                  ].map(({ path, icon, label }) => (
-                    <button
-                      key={label}
-                      onClick={() => { navigate(path); setOpen(false); }}
-                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition mb-0.5
-                        ${isActive(path)
-                          ? "bg-blue-50 text-blue-700 font-semibold"
-                          : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
-                        }`}
-                    >
-                      <span className={isActive(path) ? "text-blue-500" : "text-gray-400"}>{icon}</span>
-                      {label}
-                    </button>
-                  ))}
+                  <button
+                    onClick={() => { navigate("/profile"); setOpen(false); }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition mb-0.5
+                      ${isActive("/profile")
+                        ? "bg-blue-50 text-blue-700 font-semibold"
+                        : "text-gray-700 hover:bg-gray-100 hover:text-gray-900"
+                      }`}
+                  >
+                    <span className={isActive("/profile") ? "text-blue-500" : "text-gray-400"}><FiUser size={14} /></span>
+                    Profile
+                  </button>
                 </div>
 
                 {/* ── Logout ── */}

@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Discussion from "../models/Discussion.js";
 import Event      from "../models/Event.js";
+import { logAdminAction } from "../services/loggerService.js";
 
 /*
   ─────────────────────────────────────────────
@@ -230,6 +231,16 @@ export const deleteMessage = async (req, res) => {
     // Soft delete — preserve thread structure
     discussion.isDeleted = true;
     await discussion.save();
+
+    if (req.user.role === "college_admin" || req.user.role === "super_admin") {
+  logAdminAction(
+    req.user,
+    "DISCUSSION_DELETED",
+    discussion._id,
+    "Discussion",
+    { eventId: discussion.eventId }
+  );
+}
 
     return res.status(200).json({ message: "Message deleted successfully" });
 

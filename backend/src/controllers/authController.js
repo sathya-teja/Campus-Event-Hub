@@ -196,6 +196,14 @@ export const approveCollegeAdmin = async (req, res) => {
     admin.status = "approved";
     await admin.save();
 
+    logAdminAction(
+  req.user,
+  "COLLEGE_ADMIN_APPROVED",
+  admin._id,
+  "User",
+  { email: admin.email }
+);
+
     res.status(200).json({
       message: "College Admin approved successfully",
     });

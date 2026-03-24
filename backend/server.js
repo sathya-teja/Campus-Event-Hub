@@ -15,6 +15,7 @@ import passport from "./src/config/passport.js";
 import certificateRoutes from "./src/routes/certificateRoutes.js";
 import discussionRoutes from "./src/routes/discussionRoutes.js";
 import feedbackRoutes from "./src/routes/FeedbackRoutes.js";
+import adminLogRoutes from "./src/routes/adminLogRoutes.js";
 
 
 
@@ -86,6 +87,7 @@ app.use("/api/registrations", registrationRoutes);
 app.use("/api/discussions", discussionRoutes);
 app.use("/api/certificates", certificateRoutes);
 app.use("/api/feedback", feedbackRoutes);
+app.use("/api/admin-logs", adminLogRoutes);
 
 
 // 404 handler

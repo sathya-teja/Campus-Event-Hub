@@ -110,6 +110,15 @@ export const rejectAdmin = async (req, res) => {
     admin.status = "rejected";
     await admin.save();
 
+    // Log the rejection action
+    logAdminAction(
+  req.user,
+  "COLLEGE_ADMIN_REJECTED",
+  admin._id,
+  "User",
+  { email: admin.email }
+);
+
     res.status(200).json({ message: "Admin rejected successfully" });
 
     // 🔔 NEW — send in-app + email + browser push (non-blocking, after response sent)

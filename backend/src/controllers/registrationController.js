@@ -4,6 +4,7 @@ import Event from "../models/Event.js";
 import User from "../models/User.js";
 import { createAndSendNotification } from "./notificationController.js";
 import { sendEmail, emailTemplates } from "../services/emailService.js";
+import { logAdminAction } from "../services/loggerService.js";
 
 /*
 REGISTER FOR EVENT
@@ -185,6 +186,15 @@ export const approveRegistration = async (req, res) => {
     registration.approvedBy = req.user._id;
     await registration.save();
 
+    // Log the approval action
+    logAdminAction(
+  req.user,
+  "REGISTRATION_APPROVED",
+  registration._id,
+  "Registration",
+  { eventId: registration.eventId }
+);
+
     res.json(registration);
 
     // 🔔 Notify the student — non-blocking, after response sent
@@ -251,6 +261,15 @@ export const rejectRegistration = async (req, res) => {
 
     registration.status = "rejected";
     await registration.save();
+
+    // Log the rejection action
+    logAdminAction(
+  req.user,
+  "REGISTRATION_REJECTED",
+  registration._id,
+  "Registration",
+  { eventId: registration.eventId }
+);
 
     res.json(registration);
 

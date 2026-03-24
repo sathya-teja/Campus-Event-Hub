@@ -167,4 +167,8 @@ export const getAdminFeedbackAnalytics = ()         => API.get("/feedback/analyt
 // College admin: detailed analytics for one event
 export const getEventFeedbackAnalytics = (eventId)  => API.get(`/feedback/analytics/${eventId}`);
 
+
+// Admin Logs API
+export const getAdminLogs = () => API.get("/admin-logs");
+
 export default API;

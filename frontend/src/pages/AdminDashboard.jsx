@@ -2,15 +2,37 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
-import { getMyEvents, createEvent, updateEvent, deleteEvent, getImageUrl, getEventRegistrations, getAllRegistrations, approveRegistration, rejectRegistration, getAllUsers, getMyEventStudents, exportRegistrationsCSV, exportRegistrationsExcel, exportRegistrationsPDF, exportRegistrationsJSON, exportAllRegistrationsCSV, exportAllRegistrationsExcel, exportAllRegistrationsPDF, exportAllRegistrationsJSON, getEventAttendance, scanAttendanceQR } from "../services/api";
+import {
+  getMyEvents,
+  createEvent,
+  updateEvent,
+  deleteEvent,
+  getImageUrl,
+  getEventRegistrations,
+  getAllRegistrations,
+  approveRegistration,
+  rejectRegistration,
+  getAllUsers,
+  getMyEventStudents,
+  exportRegistrationsCSV,
+  exportRegistrationsExcel,
+  exportRegistrationsPDF,
+  exportRegistrationsJSON,
+  exportAllRegistrationsCSV,
+  exportAllRegistrationsExcel,
+  exportAllRegistrationsPDF,
+  exportAllRegistrationsJSON,
+  getEventAttendance,
+  scanAttendanceQR,
+} from "../services/api";
 import Navbar from "../components/Navbar";
 import StatsCard from "../components/StatsCard";
 import Sidebar from "../components/Sidebar";
 import EventCard from "../components/EventCard";
 import { useAuth } from "../context/AuthContext";
 import FeedbackSection from "../components/FeedbackSection";
-// Also add FiStar to the react-icons import list:
 
+import { getAdminLogs } from "../services/api";
 import {
   FiUsers,
   FiFileText,
@@ -44,8 +66,31 @@ import {
   FiClock,
   FiPercent,
   FiStar,
+  // Add these new icons for logs
+  FiMessageSquare,
+  FiXCircle,
+  FiUser as FiUserIcon,
 } from "react-icons/fi";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
 
+// Remove recharts focus outlines globally
+const styleEl = document.createElement("style");
+styleEl.textContent = `.recharts-wrapper, .recharts-surface, .recharts-sector { outline: none !important; }`;
+if (!document.head.querySelector("[data-recharts-fix]")) {
+  styleEl.setAttribute("data-recharts-fix", "true");
+  document.head.appendChild(styleEl);
+}
 
 const EVENTS_PER_PAGE = 6;
 const CATEGORIES = ["Tech", "Cultural", "Sports", "Workshop"];
@@ -67,13 +112,17 @@ const CATEGORY_COLORS = {
 
 function formatDate(date) {
   return new Date(date).toLocaleDateString("en-IN", {
-    day: "numeric", month: "short", year: "numeric",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
   });
 }
 
 function formatTime(date) {
   return new Date(date).toLocaleTimeString("en-IN", {
-    hour: "2-digit", minute: "2-digit", hour12: true,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
   });
 }
 
@@ -111,9 +160,79 @@ function toCardProps(event) {
 
 function inputCls(error) {
   return `w-full px-3.5 py-2.5 rounded-lg border text-sm text-gray-800 placeholder-gray-400 outline-none transition-all focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 ${
-    error ? "border-red-300 bg-red-50 focus:ring-red-100" : "border-gray-200 bg-white"
+    error
+      ? "border-red-300 bg-red-50 focus:ring-red-100"
+      : "border-gray-200 bg-white"
   }`;
 }
+
+// ── Scoped CSS for admin dashboard (matching student dashboard style) ──
+const adminStyles = `
+  @keyframes dash-rise {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes dash-card-in {
+    from { opacity: 0; transform: translateY(12px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes dash-hero-in {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .dash-fade-in { animation: dash-rise 0.4s cubic-bezier(.22,.68,0,1) forwards; }
+  .dash-hero    { animation: dash-hero-in 0.45s cubic-bezier(.22,.68,0,1) forwards; }
+  .dash-card {
+    animation: dash-card-in 0.4s cubic-bezier(.22,.68,0,1.1) both;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .dash-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.07);
+  }
+
+  /* Chart panels */
+  .chart-panel {
+    background: rgba(255,255,255,0.88);
+    backdrop-filter: blur(12px);
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.9);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.05);
+    padding: 20px;
+    transition: box-shadow 0.2s ease;
+  }
+  .chart-panel:hover {
+    box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+  }
+  .chart-header {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #374151;
+    margin-bottom: 12px;
+    letter-spacing: 0.01em;
+  }
+  .chart-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Widget shell */
+  .dash-widget > div {
+    border-radius: 20px !important;
+    border: 1px solid rgba(255,255,255,0.9) !important;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.05) !important;
+    background: rgba(255,255,255,0.85) !important;
+    backdrop-filter: blur(12px) !important;
+    transition: box-shadow 0.2s ease !important;
+  }
+  .dash-widget > div:hover {
+    box-shadow: 0 8px 32px rgba(0,0,0,0.08) !important;
+  }
+`;
 
 /* ================================================
    ROOT DASHBOARD
@@ -135,57 +254,671 @@ export default function AdminDashboard() {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
-      <Navbar toggleSidebar={() => setMobileOpen(true)} />
+    <>
+      <style>{adminStyles}</style>
+      <div className="h-screen flex flex-col overflow-hidden">
+        <Navbar toggleSidebar={() => setMobileOpen(true)} />
 
-      <div className="flex flex-1 pt-16 overflow-hidden">
-        <Sidebar
-          title="Admin Panel"
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          mobileOpen={mobileOpen}
-          setMobileOpen={setMobileOpen}
-          collapsed={collapsed}
-          setCollapsed={setCollapsed}
-          items={[
-            { key: "overview", label: "Overview", icon: <FiHome /> },
-            { key: "users", label: "User Management", icon: <FiUsers /> },
-            { key: "events", label: "Event Management", icon: <FiCalendar /> },
-            { key: "registrations", label: "Registrations", icon: <FiCheckCircle /> },
-            { key: "attendance", label: "Attendance", icon: <FiActivity /> },
-            { key: "feedback",       label: "Feedback",         icon: <FiStar />        }, // ← ADD THIS LINE
-            { key: "logs", label: "Admin Logs", icon: <FiFileText /> },
-          ]}
-          onLogout={handleLogout}
+        <div className="flex flex-1 pt-16 overflow-hidden">
+          <Sidebar
+            title="Admin Panel"
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            mobileOpen={mobileOpen}
+            setMobileOpen={setMobileOpen}
+            collapsed={collapsed}
+            setCollapsed={setCollapsed}
+            items={[
+              { key: "overview", label: "Overview", icon: <FiHome /> },
+              { key: "users", label: "User Management", icon: <FiUsers /> },
+              {
+                key: "events",
+                label: "Event Management",
+                icon: <FiCalendar />,
+              },
+              {
+                key: "registrations",
+                label: "Registrations",
+                icon: <FiCheckCircle />,
+              },
+              { key: "attendance", label: "Attendance", icon: <FiActivity /> },
+              { key: "feedback", label: "Feedback", icon: <FiStar /> },
+              { key: "logs", label: "Admin Logs", icon: <FiFileText /> },
+            ]}
+            onLogout={handleLogout}
+          />
+
+          <main
+            className={`flex-1 overflow-y-auto overflow-x-hidden transition-all duration-300 ${
+              collapsed ? "md:ml-[68px]" : "md:ml-64"
+            }`}
+            style={{
+              background:
+                "linear-gradient(160deg, #f0f4ff 0%, #f8fafc 50%, #f0fdf4 100%)",
+            }}
+          >
+            <div className="p-5 sm:p-8">
+              {activeTab === "overview" && <OverviewSection />}
+
+              {activeTab === "users" && <UserManagement />}
+              {activeTab === "events" && <EventManagement />}
+              {activeTab === "registrations" && <Registrations />}
+              {activeTab === "attendance" && <AttendanceSection />}
+              {activeTab === "feedback" && <FeedbackSection />}
+              {activeTab === "logs" && <AdminLogs />}
+            </div>
+          </main>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/* ================================================
+   OVERVIEW SECTION (Redesigned like Student Dashboard)
+================================================ */
+function OverviewSection() {
+  const { user } = useAuth();
+  const [stats, setStats] = useState({
+    events: 0,
+    students: 0,
+    approved: 0,
+    pending: 0,
+    rejected: 0,
+    total: 0,
+  });
+  const [recentEvents, setRecentEvents] = useState([]);
+  const [recentRegs, setRecentRegs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [trendData, setTrendData] = useState([]);
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      try {
+        const [eventsRes, studentsRes, regsRes] = await Promise.all([
+          getMyEvents(),
+          getMyEventStudents(),
+          getAllRegistrations(),
+        ]);
+        const regs = regsRes.data.registrations || [];
+        setStats({
+          events: eventsRes.data.length,
+          students: studentsRes.data.length,
+          approved: regs.filter((r) => r.status === "approved").length,
+          pending: regs.filter((r) => r.status === "pending").length,
+          rejected: regs.filter((r) => r.status === "rejected").length,
+          total: regs.length,
+        });
+        // 4 most recent events
+        setRecentEvents(
+          [...eventsRes.data]
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, 4)
+        );
+        // 5 most recent registrations
+        setRecentRegs(
+          [...regs]
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, 5)
+        );
+        // Registration trend — last 6 months
+        const months = [];
+        for (let i = 5; i >= 0; i--) {
+          const d = new Date();
+          d.setMonth(d.getMonth() - i);
+          months.push({
+            label: d.toLocaleDateString("en-IN", { month: "short" }),
+            year: d.getFullYear(),
+            month: d.getMonth(),
+            count: 0,
+          });
+        }
+        regs.forEach((reg) => {
+          if (!reg.createdAt) return;
+          const d = new Date(reg.createdAt);
+          const m = months.find(
+            (mo) => mo.month === d.getMonth() && mo.year === d.getFullYear()
+          );
+          if (m) m.count += 1;
+        });
+        setTrendData(months.map((m) => ({ name: m.label, value: m.count })));
+      } catch {
+        /* silent — cards stay at 0 */
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAll();
+  }, []);
+
+  const statCards = [
+    {
+      title: "My Events",
+      value: stats.events,
+      accent: "#16a34a",
+      icon: <FiCalendar size={18} />,
+      iconBg: "bg-green-600",
+      cardBg: "from-green-50 to-green-100/60",
+      trend: "Total created",
+    },
+    {
+      title: "Students",
+      value: stats.students,
+      accent: "#2563eb",
+      icon: <FiUsers size={18} />,
+      iconBg: "bg-blue-600",
+      cardBg: "from-blue-50 to-blue-100/60",
+      trend: "Registered",
+    },
+    {
+      title: "Total Registrations",
+      value: stats.total,
+      accent: "#7c3aed",
+      icon: <FiFileText size={18} />,
+      iconBg: "bg-violet-600",
+      cardBg: "from-violet-50 to-violet-100/60",
+      trend: "All time",
+    },
+    {
+      title: "Pending Reviews",
+      value: stats.pending,
+      accent: "#dc2626",
+      icon: <FiAlertTriangle size={18} />,
+      iconBg: "bg-red-500",
+      cardBg: "from-red-50 to-red-100/60",
+      trend: "Needs action",
+    },
+  ];
+
+  const approvalRate = stats.total > 0 ? Math.round((stats.approved / stats.total) * 100) : 0;
+
+  return (
+    <div className="space-y-6 dash-fade-in">
+      {/* ── Hero Banner ───────────────────────────────────── */}
+      <div
+        className="relative overflow-hidden rounded-2xl text-white dash-hero"
+        style={{
+          background:
+            "linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #0ea5e9 100%)",
+          minHeight: 140,
+        }}
+      >
+        <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full border border-white/10" />
+        <div className="absolute -bottom-16 -left-8 w-48 h-48 rounded-full bg-white/5" />
+        <div
+          className="absolute inset-0 opacity-10"
+          style={{
+            backgroundImage:
+              "radial-gradient(circle, white 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
+          }}
         />
-
-        <main
-          className={`flex-1 overflow-y-auto overflow-x-hidden bg-gray-50 transition-all duration-300 ${
-            collapsed ? "md:ml-[68px]" : "md:ml-64"
-          }`}
-        >
-          <div className="p-5 sm:p-8">
-            <h2 className="text-xl sm:text-2xl font-semibold mb-6 text-gray-800">
-              Admin Dashboard
+        <div className="relative z-10 p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <p className="text-blue-200 text-sm font-medium mb-1">
+              Welcome back,
+            </p>
+            <h2 className="text-2xl font-bold tracking-tight mb-1">
+              {user?.name || "Admin"} 👋
             </h2>
-
-            {activeTab === "overview" && <OverviewSection />}
-
-            {activeTab === "users" && <UserManagement />}
-            {activeTab === "events" && <EventManagement />}
-            {activeTab === "registrations" && <Registrations />}
-            {activeTab === "attendance" && <AttendanceSection />}
-            {activeTab === "feedback" && <FeedbackSection />}
-            {activeTab === "logs" && <AdminLogs />}
+            <p className="text-blue-100/80 text-sm">
+              Here's what's happening with your events today.
+            </p>
           </div>
-        </main>
+          <div className="flex items-center gap-3 flex-wrap">
+            {!loading && stats.pending > 0 && (
+              <div className="flex items-center gap-2 bg-white/15 border border-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
+                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                <span className="text-xs font-semibold text-white">
+                  {stats.pending} pending review
+                  {stats.pending !== 1 ? "s" : ""}
+                </span>
+              </div>
+            )}
+            {!loading && stats.total > 0 && (
+              <div className="flex items-center gap-2 bg-white/15 border border-white/20 backdrop-blur-sm rounded-xl px-4 py-2">
+                <FiCheckCircle size={13} className="text-green-300" />
+                <span className="text-xs font-semibold text-white">
+                  {approvalRate}% approval rate
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Stat Cards ────────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {statCards.map((s, i) => (
+          <div
+            key={s.title}
+            className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${s.cardBg} border border-white/80 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:shadow-md dash-card`}
+            style={{ animationDelay: `${i * 80}ms` }}
+          >
+            <div
+              className="absolute -bottom-4 -right-4 w-20 h-20 rounded-full opacity-20"
+              style={{ background: s.accent }}
+            />
+            <div className="relative p-5">
+              <div className="flex items-center justify-between mb-3">
+                <div
+                  className={`w-9 h-9 rounded-xl ${s.iconBg} flex items-center justify-center text-white shadow-sm`}
+                >
+                  {s.icon}
+                </div>
+                <span className="text-xs font-medium text-gray-400">
+                  {s.trend}
+                </span>
+              </div>
+              {loading ? (
+                <div className="h-8 w-12 bg-white/60 rounded animate-pulse mb-1" />
+              ) : (
+                <p className="text-3xl font-bold text-gray-900 mb-0.5">
+                  {s.value}
+                </p>
+              )}
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                {s.title}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Registration Breakdown + Recent Registrations ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Approval breakdown */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center text-violet-600">
+              <FiCheckSquare size={15} />
+            </div>
+            <h3 className="font-semibold text-gray-800">
+              Registration Breakdown
+            </h3>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center h-40">
+              <div className="w-32 h-32 rounded-full bg-gray-100 animate-pulse" />
+            </div>
+          ) : stats.total === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-6">
+              No registrations yet
+            </p>
+          ) : (
+            <>
+              <div style={{ outline: "none" }} tabIndex={-1}>
+                <ResponsiveContainer width="100%" height={160}>
+                  <PieChart>
+                    <Pie
+                      data={[
+                        {
+                          name: "Approved",
+                          value: stats.approved,
+                          color: "#10b981",
+                        },
+                        {
+                          name: "Pending",
+                          value: stats.pending,
+                          color: "#f59e0b",
+                        },
+                        {
+                          name: "Rejected",
+                          value: stats.rejected,
+                          color: "#ef4444",
+                        },
+                      ].filter((d) => d.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={48}
+                      outerRadius={70}
+                      paddingAngle={3}
+                      dataKey="value"
+                      animationBegin={100}
+                      animationDuration={800}
+                      style={{ outline: "none" }}
+                    >
+                      {[
+                        {
+                          name: "Approved",
+                          value: stats.approved,
+                          color: "#10b981",
+                        },
+                        {
+                          name: "Pending",
+                          value: stats.pending,
+                          color: "#f59e0b",
+                        },
+                        {
+                          name: "Rejected",
+                          value: stats.rejected,
+                          color: "#ef4444",
+                        },
+                      ]
+                        .filter((d) => d.value > 0)
+                        .map((entry, i) => (
+                          <Cell
+                            key={i}
+                            fill={entry.color}
+                            stroke="none"
+                            style={{ outline: "none" }}
+                          />
+                        ))}
+                      <text
+                        x="50%"
+                        y="46%"
+                        textAnchor="middle"
+                        fill="#111827"
+                        fontSize={22}
+                        fontWeight={700}
+                      >
+                        {approvalRate}%
+                      </text>
+                      <text
+                        x="50%"
+                        y="58%"
+                        textAnchor="middle"
+                        fill="#6b7280"
+                        fontSize={10}
+                        fontWeight={500}
+                      >
+                        Approval
+                      </text>
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: 12,
+                        border: "none",
+                        boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+                        fontSize: 12,
+                      }}
+                      formatter={(v, n) => [v, n]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex justify-center gap-4 mt-1 flex-wrap">
+                {[
+                  { label: "Approved", count: stats.approved, color: "#10b981" },
+                  { label: "Pending", count: stats.pending, color: "#f59e0b" },
+                  { label: "Rejected", count: stats.rejected, color: "#ef4444" },
+                ].map((d) => (
+                  <div key={d.label} className="flex items-center gap-1.5">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ background: d.color }}
+                    />
+                    <span className="text-xs text-gray-500 font-medium">
+                      {d.label}{" "}
+                      <span className="text-gray-800 font-bold">{d.count}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Recent registrations */}
+        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
+                <FiUsers size={15} />
+              </div>
+              <h3 className="font-semibold text-gray-800">
+                Recent Registrations
+              </h3>
+            </div>
+            <span className="text-xs text-gray-400">Latest 5</span>
+          </div>
+          {loading ? (
+            <div className="divide-y divide-gray-50">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 px-5 py-3.5 animate-pulse"
+                >
+                  <div className="w-8 h-8 rounded-full bg-gray-100 flex-shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 bg-gray-100 rounded w-1/3" />
+                    <div className="h-2.5 bg-gray-100 rounded w-1/2" />
+                  </div>
+                  <div className="h-5 w-16 bg-gray-100 rounded-full" />
+                </div>
+              ))}
+            </div>
+          ) : recentRegs.length === 0 ? (
+            <div className="p-10 text-center">
+              <FiCheckCircle size={28} className="text-gray-200 mx-auto mb-2" />
+              <p className="text-sm text-gray-400">No registrations yet</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {recentRegs.map((reg) => {
+                const sc = {
+                  approved: {
+                    bg: "bg-green-50",
+                    text: "text-green-700",
+                    dot: "bg-green-500",
+                    label: "Approved",
+                  },
+                  pending: {
+                    bg: "bg-amber-50",
+                    text: "text-amber-700",
+                    dot: "bg-amber-400",
+                    label: "Pending",
+                  },
+                  rejected: {
+                    bg: "bg-red-50",
+                    text: "text-red-700",
+                    dot: "bg-red-400",
+                    label: "Rejected",
+                  },
+                }[reg.status] || {
+                  bg: "bg-gray-50",
+                  text: "text-gray-600",
+                  dot: "bg-gray-400",
+                  label: reg.status,
+                };
+                return (
+                  <div
+                    key={reg._id}
+                    className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50/60 transition-colors"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">
+                      {reg.userId?.name?.charAt(0).toUpperCase() || "?"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">
+                        {reg.userId?.name || "Unknown"}
+                      </p>
+                      <p className="text-xs text-gray-400 truncate">
+                        {reg.eventId?.title || reg.eventTitle || "—"}
+                      </p>
+                    </div>
+                    <span
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} border-transparent flex-shrink-0`}
+                    >
+                      <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
+                      {sc.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Registration Trend Chart ──────────────────────── */}
+      {!loading && trendData.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
+              <FiActivity size={15} />
+            </div>
+            <h3 className="font-semibold text-gray-800">Registration Trend</h3>
+            <span className="ml-auto text-xs text-gray-400">Last 6 months</span>
+          </div>
+          <ResponsiveContainer width="100%" height={180}>
+            <AreaChart
+              data={trendData}
+              margin={{ top: 8, right: 8, left: -20, bottom: 0 }}
+            >
+              <defs>
+                <linearGradient id="regGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#2563eb" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid
+                strokeDasharray="3 3"
+                stroke="#f0f0f0"
+                vertical={false}
+              />
+              <XAxis
+                dataKey="name"
+                tick={{ fontSize: 11, fill: "#6b7280" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 11, fill: "#6b7280" }}
+                axisLine={false}
+                tickLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip
+                contentStyle={{
+                  borderRadius: 12,
+                  border: "none",
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.1)",
+                  fontSize: 12,
+                }}
+                formatter={(v) => [v, "Registrations"]}
+              />
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke="#2563eb"
+                strokeWidth={2.5}
+                fill="url(#regGrad)"
+                dot={{ fill: "#2563eb", r: 4, strokeWidth: 0 }}
+                activeDot={{
+                  r: 6,
+                  fill: "#2563eb",
+                  strokeWidth: 2,
+                  stroke: "#fff",
+                }}
+                animationDuration={900}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* ── Recent Events ─────────────────────────────────── */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-600">
+              <FiCalendar size={15} />
+            </div>
+            <h3 className="font-semibold text-gray-800">Recent Events</h3>
+          </div>
+          <span className="text-xs text-gray-400">Latest 4</span>
+        </div>
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-gray-100">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-white p-5 animate-pulse space-y-2">
+                <div className="h-4 bg-gray-100 rounded w-2/3" />
+                <div className="h-3 bg-gray-100 rounded w-1/2" />
+                <div className="h-3 bg-gray-100 rounded w-1/3" />
+              </div>
+            ))}
+          </div>
+        ) : recentEvents.length === 0 ? (
+          <div className="p-10 text-center">
+            <FiCalendar size={28} className="text-gray-200 mx-auto mb-2" />
+            <p className="text-sm text-gray-400">No events created yet</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-gray-100">
+            {recentEvents.map((ev) => {
+              const status = getEventStatus(ev.startDate, ev.endDate);
+              const statusCfg = {
+                Upcoming: {
+                  bg: "bg-blue-50",
+                  text: "text-blue-600",
+                  dot: "bg-blue-400",
+                },
+                Ongoing: {
+                  bg: "bg-green-50",
+                  text: "text-green-600",
+                  dot: "bg-green-500 animate-pulse",
+                },
+                Past: {
+                  bg: "bg-gray-50",
+                  text: "text-gray-500",
+                  dot: "bg-gray-300",
+                },
+              }[status];
+              const tagColor =
+                CATEGORY_TAG_COLORS[ev.category] ||
+                "bg-gray-100 text-gray-500 border-gray-200";
+              return (
+                <div
+                  key={ev._id}
+                  className="bg-white p-5 hover:bg-gray-50/60 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <p className="text-sm font-semibold text-gray-800 truncate flex-1">
+                      {ev.title}
+                    </p>
+                    <span
+                      className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${statusCfg.bg} ${statusCfg.text}`}
+                    >
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`}
+                      />
+                      {status}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full border font-medium ${tagColor}`}
+                    >
+                      {ev.category}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      {formatDate(ev.startDate)}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      · {ev.currentParticipants ?? 0}/{ev.maxParticipants} seats
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
+const CATEGORY_TAG_COLORS = {
+  Tech: "bg-blue-50 text-blue-600 border-blue-100",
+  Cultural: "bg-purple-50 text-purple-600 border-purple-100",
+  Sports: "bg-green-50 text-green-600 border-green-100",
+  Workshop: "bg-amber-50 text-amber-600 border-amber-100",
+};
+
 /* ================================================
-   EVENT MANAGEMENT
+   EVENT MANAGEMENT (unchanged, but stays consistent)
 ================================================ */
 function EventManagement() {
   const [events, setEvents] = useState([]);
@@ -218,7 +951,9 @@ function EventManagement() {
     }
   }, []);
 
-  useEffect(() => { fetchEvents(); }, [fetchEvents]);
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
@@ -240,7 +975,8 @@ function EventManagement() {
       const matchSearch =
         ev.title.toLowerCase().includes(search.toLowerCase()) ||
         ev.location?.toLowerCase().includes(search.toLowerCase());
-      const matchCategory = categoryFilter === "All" || ev.category === categoryFilter;
+      const matchCategory =
+        categoryFilter === "All" || ev.category === categoryFilter;
       const status = getEventStatus(ev.startDate, ev.endDate);
       const matchStatus = statusFilter === "All" || status === statusFilter;
       return matchSearch && matchCategory && matchStatus;
@@ -253,16 +989,22 @@ function EventManagement() {
     page * EVENTS_PER_PAGE
   );
 
-  useEffect(() => { setPage(1); }, [search, categoryFilter, statusFilter]);
+  useEffect(() => {
+    setPage(1);
+  }, [search, categoryFilter, statusFilter]);
 
   return (
     <div>
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <div>
-          <h3 className="text-lg font-semibold text-gray-800">Event Management</h3>
+          <h3 className="text-lg font-semibold text-gray-800">
+            Event Management
+          </h3>
           <p className="text-sm text-gray-500 mt-0.5">
-            {loading ? "Loading..." : `${filtered.length} event${filtered.length !== 1 ? "s" : ""} found`}
+            {loading
+              ? "Loading..."
+              : `${filtered.length} event${filtered.length !== 1 ? "s" : ""} found`}
           </p>
         </div>
         <button
@@ -277,7 +1019,10 @@ function EventManagement() {
       {/* Filters */}
       <div className="bg-white border border-gray-100 rounded-xl p-4 mb-4 flex flex-col sm:flex-row gap-3 shadow-sm">
         <div className="relative flex-1">
-          <FiSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <FiSearch
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          />
           <input
             type="text"
             placeholder="Search events or locations..."
@@ -286,7 +1031,10 @@ function EventManagement() {
             className="w-full pl-9 pr-9 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 bg-gray-50"
           />
           {search && (
-            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
               <FiX size={14} />
             </button>
           )}
@@ -323,8 +1071,14 @@ function EventManagement() {
         <ErrorState message={error} onRetry={fetchEvents} />
       ) : filtered.length === 0 ? (
         <EmptyState
-          hasFilters={search || categoryFilter !== "All" || statusFilter !== "All"}
-          onClear={() => { setSearch(""); setCategoryFilter("All"); setStatusFilter("All"); }}
+          hasFilters={
+            search || categoryFilter !== "All" || statusFilter !== "All"
+          }
+          onClear={() => {
+            setSearch("");
+            setCategoryFilter("All");
+            setStatusFilter("All");
+          }}
           onCreate={() => setShowCreate(true)}
         />
       ) : (
@@ -336,14 +1090,19 @@ function EventManagement() {
                 event={event}
                 index={i}
                 onEdit={() => setEditTarget(event)}
-                onDelete={() => { setDeleteTarget(event); setDeleteError(""); }}
+                onDelete={() => {
+                  setDeleteTarget(event);
+                  setDeleteError("");
+                }}
               />
             ))}
           </div>
 
           {totalPages > 1 && (
             <div className="flex items-center justify-between mt-5">
-              <p className="text-sm text-gray-500">Page {page} of {totalPages}</p>
+              <p className="text-sm text-gray-500">
+                Page {page} of {totalPages}
+              </p>
               <div className="flex gap-2">
                 <button
                   disabled={page === 1}
@@ -352,17 +1111,21 @@ function EventManagement() {
                 >
                   <FiChevronLeft size={16} />
                 </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setPage(p)}
-                    className={`w-9 h-9 rounded-lg text-sm font-semibold transition-colors ${
-                      page === p ? "bg-blue-600 text-white" : "border border-gray-200 text-gray-600 hover:bg-gray-100"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                  (p) => (
+                    <button
+                      key={p}
+                      onClick={() => setPage(p)}
+                      className={`w-9 h-9 rounded-lg text-sm font-semibold transition-colors ${
+                        page === p
+                          ? "bg-blue-600 text-white"
+                          : "border border-gray-200 text-gray-600 hover:bg-gray-100"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
                 <button
                   disabled={page === totalPages}
                   onClick={() => setPage((p) => p + 1)}
@@ -414,7 +1177,7 @@ function EventManagement() {
 }
 
 /* ================================================
-   CREATE EVENT MODAL
+   CREATE EVENT MODAL (unchanged)
 ================================================ */
 function CreateEventModal({ onClose, onCreated }) {
   const fileInputRef = useRef(null);
@@ -439,7 +1202,9 @@ function CreateEventModal({ onClose, onCreated }) {
 
   // Close on Escape
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -479,12 +1244,20 @@ function CreateEventModal({ onClose, onCreated }) {
     if (!formData.endDate) e.endDate = "End date is required";
     if (!formData.endTime) e.endTime = "End time is required";
     if (formData.startDate && formData.endDate) {
-      const start = new Date(`${formData.startDate}T${formData.startTime || "00:00"}`);
-      const end   = new Date(`${formData.endDate}T${formData.endTime || "00:00"}`);
+      const start = new Date(
+        `${formData.startDate}T${formData.startTime || "00:00"}`
+      );
+      const end = new Date(
+        `${formData.endDate}T${formData.endTime || "00:00"}`
+      );
       if (start >= end) e.endTime = "End must be after start date & time";
     }
     if (!formData.description.trim()) e.description = "Description is required";
-    if (!formData.maxParticipants || isNaN(formData.maxParticipants) || Number(formData.maxParticipants) < 1)
+    if (
+      !formData.maxParticipants ||
+      isNaN(formData.maxParticipants) ||
+      Number(formData.maxParticipants) < 1
+    )
       e.maxParticipants = "Must be at least 1";
     return e;
   };
@@ -498,13 +1271,22 @@ function CreateEventModal({ onClose, onCreated }) {
     }
 
     const token = localStorage.getItem("token");
-    if (!token) { setApiError("Unauthorized. Please login again."); return; }
+    if (!token) {
+      setApiError("Unauthorized. Please login again.");
+      return;
+    }
 
     // Combine date + time into ISO datetime strings
     const payload = new FormData();
     const { startDate, startTime, endDate, endTime, ...rest } = formData;
-    payload.append("startDate", new Date(`${startDate}T${startTime}`).toISOString());
-    payload.append("endDate",   new Date(`${endDate}T${endTime}`).toISOString());
+    payload.append(
+      "startDate",
+      new Date(`${startDate}T${startTime}`).toISOString()
+    );
+    payload.append(
+      "endDate",
+      new Date(`${endDate}T${endTime}`).toISOString()
+    );
     Object.entries(rest).forEach(([key, val]) => payload.append(key, val));
     if (imageFile) payload.append("image", imageFile);
 
@@ -528,12 +1310,15 @@ function CreateEventModal({ onClose, onCreated }) {
 
       {/* Modal */}
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col z-10 overflow-hidden">
-
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <div>
-            <h2 className="text-base font-bold text-gray-900">Create New Event</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Fill in the details to publish a new event</p>
+            <h2 className="text-base font-bold text-gray-900">
+              Create New Event
+            </h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Fill in the details to publish a new event
+            </p>
           </div>
           <button
             onClick={onClose}
@@ -549,15 +1334,18 @@ function CreateEventModal({ onClose, onCreated }) {
             <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
               <FiCheckSquare size={30} className="text-green-600" />
             </div>
-            <p className="text-base font-semibold text-gray-800">Event Created!</p>
-            <p className="text-sm text-gray-400">The new event has been added to your list.</p>
+            <p className="text-base font-semibold text-gray-800">
+              Event Created!
+            </p>
+            <p className="text-sm text-gray-400">
+              The new event has been added to your list.
+            </p>
           </div>
         ) : (
           <>
             {/* Scrollable body */}
             <div className="flex-1 overflow-y-auto">
               <form id="create-event-form" onSubmit={handleSubmit} noValidate>
-
                 {apiError && (
                   <div className="mx-6 mt-4 px-4 py-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600 flex items-center gap-2">
                     <FiAlertCircle size={15} className="flex-shrink-0" />
@@ -590,7 +1378,8 @@ function CreateEventModal({ onClose, onCreated }) {
                             }}
                             className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all ${
                               formData.category === cat
-                                ? CATEGORY_COLORS[cat] + " ring-2 ring-offset-1 ring-current"
+                                ? CATEGORY_COLORS[cat] +
+                                  " ring-2 ring-offset-1 ring-current"
                                 : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
                             }`}
                           >
@@ -648,7 +1437,10 @@ function CreateEventModal({ onClose, onCreated }) {
                     <div className="col-span-2">
                       <Field label="Location" error={errors.location}>
                         <div className="relative">
-                          <FiMapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                          <FiMapPin
+                            size={14}
+                            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                          />
                           <input
                             name="location"
                             value={formData.location}
@@ -695,7 +1487,11 @@ function CreateEventModal({ onClose, onCreated }) {
                 <ModalSection icon={<FiUploadCloud size={14} />} title="Event Banner" optional>
                   {imagePreview ? (
                     <div className="relative rounded-xl overflow-hidden border border-gray-200 group h-36">
-                      <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <button
                           type="button"
@@ -719,8 +1515,12 @@ function CreateEventModal({ onClose, onCreated }) {
                         <FiUploadCloud size={18} />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-gray-700">Click to upload banner</p>
-                        <p className="text-xs text-gray-400 mt-0.5">PNG, JPG, WEBP — max 5MB</p>
+                        <p className="text-sm font-semibold text-gray-700">
+                          Click to upload banner
+                        </p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          PNG, JPG, WEBP — max 5MB
+                        </p>
                       </div>
                     </label>
                   )}
@@ -732,9 +1532,10 @@ function CreateEventModal({ onClose, onCreated }) {
                     onChange={handleImageChange}
                     className="hidden"
                   />
-                  {errors.image && <p className="text-xs text-red-500 mt-1.5">{errors.image}</p>}
+                  {errors.image && (
+                    <p className="text-xs text-red-500 mt-1.5">{errors.image}</p>
+                  )}
                 </ModalSection>
-
               </form>
             </div>
 
@@ -759,7 +1560,9 @@ function CreateEventModal({ onClose, onCreated }) {
                     Creating...
                   </>
                 ) : (
-                  <><FiPlus size={15} /> Create Event</>
+                  <>
+                    <FiPlus size={15} /> Create Event
+                  </>
                 )}
               </button>
             </div>
@@ -776,7 +1579,9 @@ function ModalSection({ icon, title, optional, children }) {
     <div className="px-6 py-5 border-b border-gray-100 last:border-b-0">
       <div className="flex items-center gap-2 mb-3">
         <span className="text-blue-600">{icon}</span>
-        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">{title}</span>
+        <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+          {title}
+        </span>
         {optional && <span className="text-xs text-gray-400">(optional)</span>}
       </div>
       {children}
@@ -795,9 +1600,8 @@ function Field({ label, children, error }) {
   );
 }
 
-
 /* ================================================
-   EDIT EVENT MODAL
+   EDIT EVENT MODAL (unchanged)
 ================================================ */
 function EditEventModal({ event, onClose, onUpdated }) {
   const fileInputRef = useRef(null);
@@ -833,7 +1637,9 @@ function EditEventModal({ event, onClose, onUpdated }) {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -873,12 +1679,20 @@ function EditEventModal({ event, onClose, onUpdated }) {
     if (!formData.endDate) e.endDate = "End date is required";
     if (!formData.endTime) e.endTime = "End time is required";
     if (formData.startDate && formData.endDate) {
-      const start = new Date(`${formData.startDate}T${formData.startTime || "00:00"}`);
-      const end   = new Date(`${formData.endDate}T${formData.endTime || "00:00"}`);
+      const start = new Date(
+        `${formData.startDate}T${formData.startTime || "00:00"}`
+      );
+      const end = new Date(
+        `${formData.endDate}T${formData.endTime || "00:00"}`
+      );
       if (start >= end) e.endTime = "End must be after start date & time";
     }
     if (!formData.description.trim()) e.description = "Description is required";
-    if (!formData.maxParticipants || isNaN(formData.maxParticipants) || Number(formData.maxParticipants) < 1)
+    if (
+      !formData.maxParticipants ||
+      isNaN(formData.maxParticipants) ||
+      Number(formData.maxParticipants) < 1
+    )
       e.maxParticipants = "Must be at least 1";
     return e;
   };
@@ -892,13 +1706,22 @@ function EditEventModal({ event, onClose, onUpdated }) {
     }
 
     const token = localStorage.getItem("token");
-    if (!token) { setApiError("Unauthorized. Please login again."); return; }
+    if (!token) {
+      setApiError("Unauthorized. Please login again.");
+      return;
+    }
 
     // Combine date + time into ISO datetime strings
     const payload = new FormData();
     const { startDate, startTime, endDate, endTime, ...rest } = formData;
-    payload.append("startDate", new Date(`${startDate}T${startTime}`).toISOString());
-    payload.append("endDate",   new Date(`${endDate}T${endTime}`).toISOString());
+    payload.append(
+      "startDate",
+      new Date(`${startDate}T${startTime}`).toISOString()
+    );
+    payload.append(
+      "endDate",
+      new Date(`${endDate}T${endTime}`).toISOString()
+    );
     Object.entries(rest).forEach(([key, val]) => payload.append(key, val));
     if (imageFile) payload.append("image", imageFile);
 
@@ -917,10 +1740,12 @@ function EditEventModal({ event, onClose, onUpdated }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
 
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col z-10 overflow-hidden">
-
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -929,7 +1754,9 @@ function EditEventModal({ event, onClose, onUpdated }) {
             </div>
             <div>
               <h2 className="text-base font-bold text-gray-900">Edit Event</h2>
-              <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{event.title}</p>
+              <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">
+                {event.title}
+              </p>
             </div>
           </div>
           <button
@@ -946,14 +1773,17 @@ function EditEventModal({ event, onClose, onUpdated }) {
             <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
               <FiCheckSquare size={30} className="text-green-600" />
             </div>
-            <p className="text-base font-semibold text-gray-800">Event Updated!</p>
-            <p className="text-sm text-gray-400">Your changes have been saved successfully.</p>
+            <p className="text-base font-semibold text-gray-800">
+              Event Updated!
+            </p>
+            <p className="text-sm text-gray-400">
+              Your changes have been saved successfully.
+            </p>
           </div>
         ) : (
           <>
             <div className="flex-1 overflow-y-auto">
               <form id="edit-event-form" onSubmit={handleSubmit} noValidate>
-
                 {apiError && (
                   <div className="mx-6 mt-4 px-4 py-3 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600 flex items-center gap-2">
                     <FiAlertCircle size={15} className="flex-shrink-0" />
@@ -986,7 +1816,8 @@ function EditEventModal({ event, onClose, onUpdated }) {
                             }}
                             className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all ${
                               formData.category === cat
-                                ? CATEGORY_COLORS[cat] + " ring-2 ring-offset-1 ring-current"
+                                ? CATEGORY_COLORS[cat] +
+                                  " ring-2 ring-offset-1 ring-current"
                                 : "bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100"
                             }`}
                           >
@@ -1041,7 +1872,10 @@ function EditEventModal({ event, onClose, onUpdated }) {
                     <div className="col-span-2">
                       <Field label="Location" error={errors.location}>
                         <div className="relative">
-                          <FiMapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                          <FiMapPin
+                            size={14}
+                            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                          />
                           <input
                             name="location"
                             value={formData.location}
@@ -1088,7 +1922,11 @@ function EditEventModal({ event, onClose, onUpdated }) {
                 <ModalSection icon={<FiUploadCloud size={14} />} title="Event Banner" optional>
                   {imagePreview ? (
                     <div className="relative rounded-xl overflow-hidden border border-gray-200 group h-36">
-                      <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                      <img
+                        src={imagePreview}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                         <button
                           type="button"
@@ -1108,8 +1946,12 @@ function EditEventModal({ event, onClose, onUpdated }) {
                         <FiUploadCloud size={18} />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-gray-700">Click to upload banner</p>
-                        <p className="text-xs text-gray-400 mt-0.5">PNG, JPG, WEBP — max 5MB</p>
+                        <p className="text-sm font-semibold text-gray-700">
+                          Click to upload banner
+                        </p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          PNG, JPG, WEBP — max 5MB
+                        </p>
                       </div>
                     </label>
                   )}
@@ -1121,9 +1963,10 @@ function EditEventModal({ event, onClose, onUpdated }) {
                     onChange={handleImageChange}
                     className="hidden"
                   />
-                  {errors.image && <p className="text-xs text-red-500 mt-1.5">{errors.image}</p>}
+                  {errors.image && (
+                    <p className="text-xs text-red-500 mt-1.5">{errors.image}</p>
+                  )}
                 </ModalSection>
-
               </form>
             </div>
 
@@ -1148,7 +1991,9 @@ function EditEventModal({ event, onClose, onUpdated }) {
                     Saving...
                   </>
                 ) : (
-                  <><FiSave size={15} /> Save Changes</>
+                  <>
+                    <FiSave size={15} /> Save Changes
+                  </>
                 )}
               </button>
             </div>
@@ -1160,7 +2005,7 @@ function EditEventModal({ event, onClose, onUpdated }) {
 }
 
 /* ================================================
-   ADMIN EVENT CARD
+   ADMIN EVENT CARD (unchanged)
 ================================================ */
 function AdminEventCard({ event, onEdit, onDelete }) {
   const status = getEventStatus(event.startDate, event.endDate);
@@ -1168,11 +2013,13 @@ function AdminEventCard({ event, onEdit, onDelete }) {
 
   const statusColors = {
     Upcoming: "bg-blue-50 text-blue-600 border-blue-100",
-    Ongoing:  "bg-green-50 text-green-600 border-green-100",
-    Past:     "bg-gray-100 text-gray-500 border-gray-200",
+    Ongoing: "bg-green-50 text-green-600 border-green-100",
+    Past: "bg-gray-100 text-gray-500 border-gray-200",
   };
 
-  const categoryColor = CATEGORY_COLORS[event.category] || "bg-gray-100 text-gray-500 border-gray-200";
+  const categoryColor =
+    CATEGORY_COLORS[event.category] ||
+    "bg-gray-100 text-gray-500 border-gray-200";
 
   return (
     <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow flex flex-col">
@@ -1182,14 +2029,20 @@ function AdminEventCard({ event, onEdit, onDelete }) {
           src={cardProps.image}
           alt={cardProps.title}
           className="w-full h-full object-cover"
-          onError={(e) => { e.target.src = "https://placehold.co/600x400?text=No+Image"; }}
+          onError={(e) => {
+            e.target.src = "https://placehold.co/600x400?text=No+Image";
+          }}
         />
         {/* Status badge */}
-        <span className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusColors[status]}`}>
+        <span
+          className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-semibold border ${statusColors[status]}`}
+        >
           {status}
         </span>
         {/* Category badge */}
-        <span className={`absolute top-3 right-3 px-2.5 py-1 rounded-full text-xs font-semibold border ${categoryColor}`}>
+        <span
+          className={`absolute top-3 right-3 px-2.5 py-1 rounded-full text-xs font-semibold border ${categoryColor}`}
+        >
           {event.category}
         </span>
       </div>
@@ -1209,14 +2062,18 @@ function AdminEventCard({ event, onEdit, onDelete }) {
             <span>
               {formatDate(event.startDate)}
               {hasTime(event.startDate) && (
-                <span className="text-blue-500 ml-1">{formatTime(event.startDate)}</span>
+                <span className="text-blue-500 ml-1">
+                  {formatTime(event.startDate)}
+                </span>
               )}
               {formatDate(event.startDate) !== formatDate(event.endDate) && (
                 <>
                   {" – "}
                   {formatDate(event.endDate)}
                   {hasTime(event.endDate) && (
-                    <span className="text-blue-500 ml-1">{formatTime(event.endDate)}</span>
+                    <span className="text-blue-500 ml-1">
+                      {formatTime(event.endDate)}
+                    </span>
                   )}
                 </>
               )}
@@ -1254,11 +2111,14 @@ function AdminEventCard({ event, onEdit, onDelete }) {
   );
 }
 
-/* ── Delete Modal ── */
+/* ── Delete Modal (unchanged) ── */
 function DeleteModal({ event, loading, error, onConfirm, onCancel }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onCancel} />
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onCancel}
+      />
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 z-10">
         <div className="flex items-start gap-4">
           <div className="w-11 h-11 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
@@ -1268,8 +2128,10 @@ function DeleteModal({ event, loading, error, onConfirm, onCancel }) {
             <h3 className="font-bold text-gray-900 text-base">Delete Event</h3>
             <p className="text-sm text-gray-500 mt-1">
               Are you sure you want to delete{" "}
-              <span className="font-semibold text-gray-700">"{event.title}"</span>?
-              This action cannot be undone.
+              <span className="font-semibold text-gray-700">
+                "{event.title}"
+              </span>
+              ? This action cannot be undone.
             </p>
           </div>
         </div>
@@ -1279,16 +2141,27 @@ function DeleteModal({ event, loading, error, onConfirm, onCancel }) {
           </div>
         )}
         <div className="flex gap-3 mt-6">
-          <button onClick={onCancel} disabled={loading}
-            className="flex-1 py-2.5 rounded-lg border border-gray-200 text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-colors disabled:opacity-50">
+          <button
+            onClick={onCancel}
+            disabled={loading}
+            className="flex-1 py-2.5 rounded-lg border border-gray-200 text-gray-700 font-semibold text-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
             Cancel
           </button>
-          <button onClick={onConfirm} disabled={loading}
-            className="flex-1 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2">
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="flex-1 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-sm transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+          >
             {loading ? (
-              <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Deleting...</>
+              <>
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                Deleting...
+              </>
             ) : (
-              <><FiTrash2 size={14} /> Delete</>
+              <>
+                <FiTrash2 size={14} /> Delete
+              </>
             )}
           </button>
         </div>
@@ -1297,12 +2170,15 @@ function DeleteModal({ event, loading, error, onConfirm, onCancel }) {
   );
 }
 
-/* ── Skeleton ── */
+/* ── Skeleton (unchanged) ── */
 function EventsSkeleton() {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="bg-white border border-slate-100 rounded-2xl overflow-hidden animate-pulse shadow-sm">
+        <div
+          key={i}
+          className="bg-white border border-slate-100 rounded-2xl overflow-hidden animate-pulse shadow-sm"
+        >
           <div className="h-48 bg-gray-100" />
           <div className="p-5 space-y-3">
             <div className="h-4 bg-gray-100 rounded w-3/4" />
@@ -1322,7 +2198,10 @@ function ErrorState({ message, onRetry }) {
     <div className="bg-white border border-red-100 rounded-xl p-10 text-center">
       <FiAlertCircle size={32} className="text-red-400 mx-auto mb-3" />
       <p className="text-gray-700 font-medium">{message}</p>
-      <button onClick={onRetry} className="mt-4 px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors">
+      <button
+        onClick={onRetry}
+        className="mt-4 px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
+      >
         Retry
       </button>
     </div>
@@ -1337,14 +2216,22 @@ function EmptyState({ hasFilters, onClear, onCreate }) {
         {hasFilters ? "No events match your filters" : "No events yet"}
       </p>
       <p className="text-sm text-gray-400 mt-1 mb-5">
-        {hasFilters ? "Try adjusting the search or filters." : "Create your first event to get started."}
+        {hasFilters
+          ? "Try adjusting the search or filters."
+          : "Create your first event to get started."}
       </p>
       {hasFilters ? (
-        <button onClick={onClear} className="px-5 py-2 rounded-lg border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors">
+        <button
+          onClick={onClear}
+          className="px-5 py-2 rounded-lg border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors"
+        >
           Clear Filters
         </button>
       ) : (
-        <button onClick={onCreate} className="px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors">
+        <button
+          onClick={onCreate}
+          className="px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
+        >
           + Create Event
         </button>
       )}
@@ -1353,254 +2240,7 @@ function EmptyState({ hasFilters, onClear, onCreate }) {
 }
 
 /* ================================================
-   OVERVIEW
-================================================ */
-function OverviewSection() {
-  const [stats, setStats] = useState({ events: 0, students: 0, approved: 0, pending: 0, rejected: 0, total: 0 });
-  const [recentEvents, setRecentEvents] = useState([]);
-  const [recentRegs, setRecentRegs]     = useState([]);
-  const [loading, setLoading]           = useState(true);
-
-  useEffect(() => {
-    const fetchAll = async () => {
-      try {
-        const [eventsRes, studentsRes, regsRes] = await Promise.all([
-          getMyEvents(),
-          getMyEventStudents(),
-          getAllRegistrations(),
-        ]);
-        const regs = regsRes.data.registrations || [];
-        setStats({
-          events:   eventsRes.data.length,
-          students: studentsRes.data.length,
-          approved: regs.filter((r) => r.status === "approved").length,
-          pending:  regs.filter((r) => r.status === "pending").length,
-          rejected: regs.filter((r) => r.status === "rejected").length,
-          total:    regs.length,
-        });
-        // 4 most recent events
-        setRecentEvents(
-          [...eventsRes.data]
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            .slice(0, 4)
-        );
-        // 5 most recent registrations
-        setRecentRegs(
-          [...regs]
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            .slice(0, 5)
-        );
-      } catch { /* silent — cards stay at 0 */ }
-      finally { setLoading(false); }
-    };
-    fetchAll();
-  }, []);
-
-  const statCards = [
-    { title: "My Events",       value: stats.events,   color: "#16a34a", icon: <FiCalendar size={22} />,     bg: "bg-green-50",  ring: "ring-green-100" },
-    { title: "Students",        value: stats.students, color: "#2563eb", icon: <FiUsers size={22} />,        bg: "bg-blue-50",   ring: "ring-blue-100" },
-    { title: "Total Registrations", value: stats.total, color: "#7c3aed", icon: <FiFileText size={22} />,   bg: "bg-violet-50", ring: "ring-violet-100" },
-    { title: "Pending Reviews", value: stats.pending,  color: "#dc2626", icon: <FiAlertTriangle size={22} />, bg: "bg-red-50",  ring: "ring-red-100" },
-  ];
-
-  const approvalRate = stats.total > 0 ? Math.round((stats.approved / stats.total) * 100) : 0;
-
-  return (
-    <div className="space-y-6">
-      {/* ── Stat Cards ────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map((s) => (
-          <div key={s.title} className={`bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-center gap-4 ring-1 ${s.ring}`}>
-            <div className={`w-12 h-12 rounded-xl ${s.bg} flex items-center justify-center flex-shrink-0`}
-                 style={{ color: s.color }}>
-              {s.icon}
-            </div>
-            <div>
-              {loading ? (
-                <div className="h-7 w-12 bg-gray-100 rounded animate-pulse mb-1" />
-              ) : (
-                <p className="text-2xl font-bold text-gray-800">{s.value}</p>
-              )}
-              <p className="text-xs text-gray-400 font-medium">{s.title}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Registration Breakdown + Recent Registrations ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-        {/* Approval breakdown */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="w-8 h-8 rounded-lg bg-violet-50 flex items-center justify-center text-violet-600">
-              <FiCheckSquare size={15} />
-            </div>
-            <h3 className="font-semibold text-gray-800">Registration Breakdown</h3>
-          </div>
-
-          {loading ? (
-            <div className="space-y-3">{[1,2,3].map(i => <div key={i} className="h-8 bg-gray-100 rounded animate-pulse" />)}</div>
-          ) : stats.total === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-6">No registrations yet</p>
-          ) : (
-            <div className="space-y-3">
-              {[
-                { label: "Approved", count: stats.approved, color: "bg-green-500",  light: "bg-green-50",  text: "text-green-700" },
-                { label: "Pending",  count: stats.pending,  color: "bg-amber-400",  light: "bg-amber-50",  text: "text-amber-700" },
-                { label: "Rejected", count: stats.rejected, color: "bg-red-400",    light: "bg-red-50",    text: "text-red-700" },
-              ].map(({ label, count, color, light, text }) => {
-                const pct = stats.total > 0 ? Math.round((count / stats.total) * 100) : 0;
-                return (
-                  <div key={label}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="font-medium text-gray-600">{label}</span>
-                      <span className={`font-semibold ${text}`}>{count} <span className="text-gray-400 font-normal">({pct}%)</span></span>
-                    </div>
-                    <div className={`w-full h-2 rounded-full ${light}`}>
-                      <div className={`h-2 rounded-full ${color} transition-all duration-700`} style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-              <div className="pt-2 border-t border-gray-50 flex justify-between text-xs">
-                <span className="text-gray-400">Approval Rate</span>
-                <span className="font-bold text-green-600">{approvalRate}%</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Recent registrations */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
-                <FiUsers size={15} />
-              </div>
-              <h3 className="font-semibold text-gray-800">Recent Registrations</h3>
-            </div>
-            <span className="text-xs text-gray-400">Latest 5</span>
-          </div>
-          {loading ? (
-            <div className="divide-y divide-gray-50">
-              {[1,2,3,4,5].map((i) => (
-                <div key={i} className="flex items-center gap-3 px-5 py-3.5 animate-pulse">
-                  <div className="w-8 h-8 rounded-full bg-gray-100 flex-shrink-0" />
-                  <div className="flex-1 space-y-1.5">
-                    <div className="h-3 bg-gray-100 rounded w-1/3" />
-                    <div className="h-2.5 bg-gray-100 rounded w-1/2" />
-                  </div>
-                  <div className="h-5 w-16 bg-gray-100 rounded-full" />
-                </div>
-              ))}
-            </div>
-          ) : recentRegs.length === 0 ? (
-            <div className="p-10 text-center">
-              <FiCheckCircle size={28} className="text-gray-200 mx-auto mb-2" />
-              <p className="text-sm text-gray-400">No registrations yet</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-50">
-              {recentRegs.map((reg) => {
-                const sc = {
-                  approved: { bg: "bg-green-50", text: "text-green-700", dot: "bg-green-500", label: "Approved" },
-                  pending:  { bg: "bg-amber-50",  text: "text-amber-700",  dot: "bg-amber-400",  label: "Pending"  },
-                  rejected: { bg: "bg-red-50",    text: "text-red-700",    dot: "bg-red-400",    label: "Rejected" },
-                }[reg.status] || { bg: "bg-gray-50", text: "text-gray-600", dot: "bg-gray-400", label: reg.status };
-                return (
-                  <div key={reg._id} className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50/60 transition-colors">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs flex-shrink-0">
-                      {reg.userId?.name?.charAt(0).toUpperCase() || "?"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 truncate">{reg.userId?.name || "Unknown"}</p>
-                      <p className="text-xs text-gray-400 truncate">{reg.eventId?.title || reg.eventTitle || "—"}</p>
-                    </div>
-                    <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} border-transparent flex-shrink-0`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
-                      {sc.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ── Recent Events ─────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-600">
-              <FiCalendar size={15} />
-            </div>
-            <h3 className="font-semibold text-gray-800">Recent Events</h3>
-          </div>
-          <span className="text-xs text-gray-400">Latest 4</span>
-        </div>
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-gray-100">
-            {[1,2,3,4].map((i) => (
-              <div key={i} className="bg-white p-5 animate-pulse space-y-2">
-                <div className="h-4 bg-gray-100 rounded w-2/3" />
-                <div className="h-3 bg-gray-100 rounded w-1/2" />
-                <div className="h-3 bg-gray-100 rounded w-1/3" />
-              </div>
-            ))}
-          </div>
-        ) : recentEvents.length === 0 ? (
-          <div className="p-10 text-center">
-            <FiCalendar size={28} className="text-gray-200 mx-auto mb-2" />
-            <p className="text-sm text-gray-400">No events created yet</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-px bg-gray-100">
-            {recentEvents.map((ev) => {
-              const status = getEventStatus(ev.startDate, ev.endDate);
-              const statusCfg = {
-                Upcoming: { bg: "bg-blue-50",   text: "text-blue-600",  dot: "bg-blue-400"  },
-                Ongoing:  { bg: "bg-green-50",  text: "text-green-600", dot: "bg-green-500 animate-pulse" },
-                Past:     { bg: "bg-gray-50",   text: "text-gray-500",  dot: "bg-gray-300"  },
-              }[status];
-              const tagColor = CATEGORY_TAG_COLORS[ev.category] || "bg-gray-100 text-gray-500 border-gray-200";
-              return (
-                <div key={ev._id} className="bg-white p-5 hover:bg-gray-50/60 transition-colors">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <p className="text-sm font-semibold text-gray-800 truncate flex-1">{ev.title}</p>
-                    <span className={`flex-shrink-0 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold ${statusCfg.bg} ${statusCfg.text}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
-                      {status}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${tagColor}`}>{ev.category}</span>
-                    <span className="text-xs text-gray-400">{formatDate(ev.startDate)}</span>
-                    <span className="text-xs text-gray-400">· {ev.currentParticipants ?? 0}/{ev.maxParticipants} seats</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-const CATEGORY_TAG_COLORS = {
-  Tech:     "bg-blue-50 text-blue-600 border-blue-100",
-  Cultural: "bg-purple-50 text-purple-600 border-purple-100",
-  Sports:   "bg-green-50 text-green-600 border-green-100",
-  Workshop: "bg-amber-50 text-amber-600 border-amber-100",
-};
-
-
-
-
-/* ================================================
-   USER MANAGEMENT
+   USER MANAGEMENT (unchanged)
 ================================================ */
 function UserManagement() {
   const [users, setUsers] = useState([]);
@@ -1621,12 +2261,15 @@ function UserManagement() {
     }
   }, []);
 
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
-  const filtered = users.filter((u) =>
-    u.name?.toLowerCase().includes(search.toLowerCase()) ||
-    u.email?.toLowerCase().includes(search.toLowerCase()) ||
-    u.college?.toLowerCase().includes(search.toLowerCase())
+  const filtered = users.filter(
+    (u) =>
+      u.name?.toLowerCase().includes(search.toLowerCase()) ||
+      u.email?.toLowerCase().includes(search.toLowerCase()) ||
+      u.college?.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -1634,9 +2277,13 @@ function UserManagement() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <div>
-          <h3 className="text-lg font-semibold text-gray-800">Student Management</h3>
+          <h3 className="text-lg font-semibold text-gray-800">
+            Student Management
+          </h3>
           <p className="text-sm text-gray-500 mt-0.5">
-            {loading ? "Loading..." : `${filtered.length} student${filtered.length !== 1 ? "s" : ""} registered`}
+            {loading
+              ? "Loading..."
+              : `${filtered.length} student${filtered.length !== 1 ? "s" : ""} registered`}
           </p>
         </div>
       </div>
@@ -1644,7 +2291,10 @@ function UserManagement() {
       {/* Search */}
       <div className="bg-white border border-gray-100 rounded-xl p-4 mb-4 shadow-sm">
         <div className="relative">
-          <FiSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <FiSearch
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          />
           <input
             type="text"
             placeholder="Search by name, email or college..."
@@ -1653,7 +2303,10 @@ function UserManagement() {
             className="w-full pl-9 pr-9 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 bg-gray-50"
           />
           {search && (
-            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
               <FiX size={14} />
             </button>
           )}
@@ -1663,8 +2316,11 @@ function UserManagement() {
       {/* Content */}
       {loading ? (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          {[1,2,3,4].map((i) => (
-            <div key={i} className="flex items-center gap-4 px-6 py-4 border-b border-gray-50 animate-pulse">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="flex items-center gap-4 px-6 py-4 border-b border-gray-50 animate-pulse"
+            >
               <div className="w-10 h-10 rounded-full bg-gray-100 flex-shrink-0" />
               <div className="flex-1 space-y-2">
                 <div className="h-3.5 bg-gray-100 rounded w-1/3" />
@@ -1678,7 +2334,10 @@ function UserManagement() {
         <div className="bg-white border border-red-100 rounded-xl p-10 text-center">
           <FiAlertCircle size={32} className="text-red-400 mx-auto mb-3" />
           <p className="text-gray-700 font-medium">{error}</p>
-          <button onClick={fetchUsers} className="mt-4 px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors">
+          <button
+            onClick={fetchUsers}
+            className="mt-4 px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
+          >
             Retry
           </button>
         </div>
@@ -1686,10 +2345,15 @@ function UserManagement() {
         <div className="bg-white border border-gray-100 rounded-xl p-12 text-center">
           <FiUsers size={36} className="text-gray-300 mx-auto mb-3" />
           <p className="text-gray-700 font-semibold">
-            {search ? "No students match your search" : "No students registered yet"}
+            {search
+              ? "No students match your search"
+              : "No students registered yet"}
           </p>
           {search && (
-            <button onClick={() => setSearch("")} className="mt-4 px-5 py-2 rounded-lg border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors">
+            <button
+              onClick={() => setSearch("")}
+              className="mt-4 px-5 py-2 rounded-lg border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors"
+            >
               Clear Search
             </button>
           )}
@@ -1716,31 +2380,47 @@ function UserManagement() {
                   {user.name?.charAt(0).toUpperCase() || "?"}
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">{user.name}</p>
+                  <p className="text-sm font-semibold text-gray-800 truncate">
+                    {user.name}
+                  </p>
                   <p className="text-xs text-gray-400 truncate">{user.email}</p>
                 </div>
               </div>
 
               {/* College */}
               <div className="flex items-center sm:min-w-0 pl-12 sm:pl-0">
-                <span className="text-sm text-gray-500 truncate">{user.college || "—"}</span>
+                <span className="text-sm text-gray-500 truncate">
+                  {user.college || "—"}
+                </span>
               </div>
 
               {/* Joined */}
               <div className="flex items-center pl-12 sm:pl-0">
                 <span className="text-xs text-gray-400">
-                  {user.createdAt ? new Date(user.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                  {user.createdAt
+                    ? new Date(user.createdAt).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : "—"}
                 </span>
               </div>
 
               {/* Status */}
               <div className="flex items-center pl-12 sm:pl-0">
-                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                  user.status === "approved" ? "bg-green-100 text-green-700" :
-                  user.status === "pending"  ? "bg-yellow-100 text-yellow-700" :
-                  "bg-red-100 text-red-700"
-                }`}>
-                  {user.status ? user.status.charAt(0).toUpperCase() + user.status.slice(1) : "Active"}
+                <span
+                  className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                    user.status === "approved"
+                      ? "bg-green-100 text-green-700"
+                      : user.status === "pending"
+                      ? "bg-yellow-100 text-yellow-700"
+                      : "bg-red-100 text-red-700"
+                  }`}
+                >
+                  {user.status
+                    ? user.status.charAt(0).toUpperCase() + user.status.slice(1)
+                    : "Active"}
                 </span>
               </div>
             </div>
@@ -1752,18 +2432,18 @@ function UserManagement() {
 }
 
 /* ================================================
-   REGISTRATIONS
+   REGISTRATIONS (unchanged)
 ================================================ */
 function Registrations() {
   const [registrations, setRegistrations] = useState([]);
-  const [loading, setLoading]             = useState(true);
-  const [actionId, setActionId]           = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [actionId, setActionId] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState("all");
-  const [statusTab, setStatusTab]         = useState("all");
-  const [search, setSearch]               = useState("");
-  const [events, setEvents]               = useState([]);
-  const [exportFormat, setExportFormat]   = useState("csv");
-  const [exporting, setExporting]         = useState(false);
+  const [statusTab, setStatusTab] = useState("all");
+  const [search, setSearch] = useState("");
+  const [events, setEvents] = useState([]);
+  const [exportFormat, setExportFormat] = useState("csv");
+  const [exporting, setExporting] = useState(false);
 
   const fetchAll = useCallback(async () => {
     try {
@@ -1779,22 +2459,29 @@ function Registrations() {
           eventTitle: r.eventId?.title || eventMap[r.eventId] || "Unknown",
         }))
       );
-    } catch { /* silent */ }
-    finally { setLoading(false); }
+    } catch {
+      /* silent */
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll]);
 
   const handleApprove = async (id) => {
     try {
       setActionId(id);
       await approveRegistration(id);
       setRegistrations((prev) =>
-        prev.map((r) => r._id === id ? { ...r, status: "approved" } : r)
+        prev.map((r) => (r._id === id ? { ...r, status: "approved" } : r))
       );
     } catch (err) {
       alert(err.response?.data?.message || "Failed to approve");
-    } finally { setActionId(null); }
+    } finally {
+      setActionId(null);
+    }
   };
 
   const handleReject = async (id) => {
@@ -1803,101 +2490,104 @@ function Registrations() {
       setActionId(id);
       await rejectRegistration(id);
       setRegistrations((prev) =>
-        prev.map((r) => r._id === id ? { ...r, status: "rejected" } : r)
+        prev.map((r) => (r._id === id ? { ...r, status: "rejected" } : r))
       );
     } catch (err) {
       alert(err.response?.data?.message || "Failed to reject");
-    } finally { setActionId(null); }
+    } finally {
+      setActionId(null);
+    }
   };
 
   const handleExportRegistrations = async () => {
-  try {
-    setExporting(true);
+    try {
+      setExporting(true);
 
-    let response;
-    let filename;
+      let response;
+      let filename;
 
-    if (selectedEvent === "all") {
-      // Export all events
-      switch (exportFormat) {
-        case "csv":
-          response = await exportAllRegistrationsCSV();
-          filename = `all_registrations_${Date.now()}.csv`;
-          break;
-        case "excel":
-          response = await exportAllRegistrationsExcel();
-          filename = `all_registrations_${Date.now()}.xlsx`;
-          break;
-        case "pdf":
-          response = await exportAllRegistrationsPDF();
-          filename = `all_registrations_${Date.now()}.pdf`;
-          break;
-        case "json":
-          response = await exportAllRegistrationsJSON();
-          filename = `all_registrations_${Date.now()}.json`;
-          break;
-        default:
+      if (selectedEvent === "all") {
+        // Export all events
+        switch (exportFormat) {
+          case "csv":
+            response = await exportAllRegistrationsCSV();
+            filename = `all_registrations_${Date.now()}.csv`;
+            break;
+          case "excel":
+            response = await exportAllRegistrationsExcel();
+            filename = `all_registrations_${Date.now()}.xlsx`;
+            break;
+          case "pdf":
+            response = await exportAllRegistrationsPDF();
+            filename = `all_registrations_${Date.now()}.pdf`;
+            break;
+          case "json":
+            response = await exportAllRegistrationsJSON();
+            filename = `all_registrations_${Date.now()}.json`;
+            break;
+          default:
+            return;
+        }
+      } else {
+        // Export single event
+        const selectedEventObj = events.find((ev) => ev.title === selectedEvent);
+        if (!selectedEventObj) {
+          alert("Please select an event first");
+          setExporting(false);
           return;
-      }
-    } else {
-      // Export single event
-      const selectedEventObj = events.find((ev) => ev.title === selectedEvent);
-      if (!selectedEventObj) {
-        alert("Please select an event first");
-        setExporting(false);
-        return;
+        }
+
+        switch (exportFormat) {
+          case "csv":
+            response = await exportRegistrationsCSV(selectedEventObj._id);
+            filename = `registrations_${selectedEvent}_${Date.now()}.csv`;
+            break;
+          case "excel":
+            response = await exportRegistrationsExcel(selectedEventObj._id);
+            filename = `registrations_${selectedEvent}_${Date.now()}.xlsx`;
+            break;
+          case "pdf":
+            response = await exportRegistrationsPDF(selectedEventObj._id);
+            filename = `registrations_${selectedEvent}_${Date.now()}.pdf`;
+            break;
+          case "json":
+            response = await exportRegistrationsJSON(selectedEventObj._id);
+            filename = `registrations_${selectedEvent}_${Date.now()}.json`;
+            break;
+          default:
+            return;
+        }
       }
 
-      switch (exportFormat) {
-        case "csv":
-          response = await exportRegistrationsCSV(selectedEventObj._id);
-          filename = `registrations_${selectedEvent}_${Date.now()}.csv`;
-          break;
-        case "excel":
-          response = await exportRegistrationsExcel(selectedEventObj._id);
-          filename = `registrations_${selectedEvent}_${Date.now()}.xlsx`;
-          break;
-        case "pdf":
-          response = await exportRegistrationsPDF(selectedEventObj._id);
-          filename = `registrations_${selectedEvent}_${Date.now()}.pdf`;
-          break;
-        case "json":
-          response = await exportRegistrationsJSON(selectedEventObj._id);
-          filename = `registrations_${selectedEvent}_${Date.now()}.json`;
-          break;
-        default:
-          return;
-      }
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", filename);
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Export failed:", error);
+      alert("Failed to export registrations");
+    } finally {
+      setExporting(false);
     }
-
-    // Create download link
-    const url = window.URL.createObjectURL(new Blob([response.data]));
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", filename);
-    document.body.appendChild(link);
-    link.click();
-    link.parentNode.removeChild(link);
-    window.URL.revokeObjectURL(url);
-  } catch (error) {
-    console.error("Export failed:", error);
-    alert("Failed to export registrations");
-  } finally {
-    setExporting(false);
-  }
-};
+  };
 
   const counts = {
-    all:      registrations.length,
-    pending:  registrations.filter((r) => r.status === "pending").length,
+    all: registrations.length,
+    pending: registrations.filter((r) => r.status === "pending").length,
     approved: registrations.filter((r) => r.status === "approved").length,
     rejected: registrations.filter((r) => r.status === "rejected").length,
   };
 
   const filtered = registrations.filter((r) => {
-    const matchEvent  = selectedEvent === "all" || r.eventTitle === selectedEvent;
+    const matchEvent = selectedEvent === "all" || r.eventTitle === selectedEvent;
     const matchStatus = statusTab === "all" || r.status === statusTab;
-    const matchSearch = !search ||
+    const matchSearch =
+      !search ||
       r.userId?.name?.toLowerCase().includes(search.toLowerCase()) ||
       r.userId?.email?.toLowerCase().includes(search.toLowerCase()) ||
       r.eventTitle?.toLowerCase().includes(search.toLowerCase());
@@ -1905,9 +2595,27 @@ function Registrations() {
   });
 
   const statusConfig = {
-    pending:  { label: "Pending",  bg: "bg-amber-50",  text: "text-amber-700",  border: "border-amber-200",  dot: "bg-amber-400" },
-    approved: { label: "Approved", bg: "bg-green-50",  text: "text-green-700",  border: "border-green-200",  dot: "bg-green-500" },
-    rejected: { label: "Rejected", bg: "bg-red-50",    text: "text-red-700",    border: "border-red-200",    dot: "bg-red-400"   },
+    pending: {
+      label: "Pending",
+      bg: "bg-amber-50",
+      text: "text-amber-700",
+      border: "border-amber-200",
+      dot: "bg-amber-400",
+    },
+    approved: {
+      label: "Approved",
+      bg: "bg-green-50",
+      text: "text-green-700",
+      border: "border-green-200",
+      dot: "bg-green-500",
+    },
+    rejected: {
+      label: "Rejected",
+      bg: "bg-red-50",
+      text: "text-red-700",
+      border: "border-red-200",
+      dot: "bg-red-400",
+    },
   };
 
   if (loading) {
@@ -1915,13 +2623,20 @@ function Registrations() {
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
           <div>
-            <h3 className="text-lg font-semibold text-gray-800">Registrations</h3>
-            <p className="text-sm text-gray-500 mt-0.5">Loading registrations...</p>
+            <h3 className="text-lg font-semibold text-gray-800">
+              Registrations
+            </h3>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Loading registrations...
+            </p>
           </div>
         </div>
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          {[1,2,3].map((i) => (
-            <div key={i} className="flex items-center gap-4 px-6 py-5 border-b border-gray-50 animate-pulse">
+          {[1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className="flex items-center gap-4 px-6 py-5 border-b border-gray-50 animate-pulse"
+            >
               <div className="w-10 h-10 rounded-full bg-gray-100 flex-shrink-0" />
               <div className="flex-1 space-y-2">
                 <div className="h-3.5 bg-gray-100 rounded w-1/4" />
@@ -1941,8 +2656,12 @@ function Registrations() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
         <div>
-          <h3 className="text-lg font-semibold text-gray-800">Registrations</h3>
-          <p className="text-sm text-gray-500 mt-0.5">{filtered.length} registration{filtered.length !== 1 ? "s" : ""} found</p>
+          <h3 className="text-lg font-semibold text-gray-800">
+            Registrations
+          </h3>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {filtered.length} registration{filtered.length !== 1 ? "s" : ""} found
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
           {/* Event filter */}
@@ -1954,11 +2673,13 @@ function Registrations() {
             >
               <option value="all">All Events</option>
               {events.map((ev) => (
-                <option key={ev._id} value={ev.title}>{ev.title}</option>
+                <option key={ev._id} value={ev.title}>
+                  {ev.title}
+                </option>
               ))}
             </select>
           )}
-          
+
           {/* Export section */}
           <div className="flex items-center gap-2">
             <select
@@ -2000,12 +2721,22 @@ function Registrations() {
             }`}
           >
             {tab !== "all" && (
-              <span className={`w-2 h-2 rounded-full ${statusTab === tab ? "bg-white" : statusConfig[tab]?.dot}`} />
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  statusTab === tab ? "bg-white" : statusConfig[tab]?.dot
+                }`}
+              />
             )}
-            <span className="capitalize">{tab === "all" ? "All" : statusConfig[tab].label}</span>
-            <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
-              statusTab === tab ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"
-            }`}>
+            <span className="capitalize">
+              {tab === "all" ? "All" : statusConfig[tab].label}
+            </span>
+            <span
+              className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
+                statusTab === tab
+                  ? "bg-white/20 text-white"
+                  : "bg-gray-100 text-gray-500"
+              }`}
+            >
               {counts[tab]}
             </span>
           </button>
@@ -2015,7 +2746,10 @@ function Registrations() {
       {/* Search */}
       <div className="bg-white border border-gray-100 rounded-xl p-4 mb-4 shadow-sm">
         <div className="relative">
-          <FiSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <FiSearch
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+          />
           <input
             type="text"
             placeholder="Search by student name, email or event..."
@@ -2024,7 +2758,10 @@ function Registrations() {
             className="w-full pl-9 pr-9 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 bg-gray-50"
           />
           {search && (
-            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+            <button
+              onClick={() => setSearch("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
               <FiX size={14} />
             </button>
           )}
@@ -2035,15 +2772,19 @@ function Registrations() {
       {filtered.length === 0 ? (
         <div className="bg-white border border-gray-100 rounded-xl p-12 text-center">
           <FiCheckCircle size={36} className="text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-700 font-semibold">No registrations found</p>
-          <p className="text-sm text-gray-400 mt-1">Try changing the filters or search term.</p>
+          <p className="text-gray-700 font-semibold">
+            No registrations found
+          </p>
+          <p className="text-sm text-gray-400 mt-1">
+            Try changing the filters or search term.
+          </p>
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           {filtered.map((reg, i) => {
-            const student  = reg.userId;
+            const student = reg.userId;
             const isActing = actionId === reg._id;
-            const sc       = statusConfig[reg.status] || statusConfig.pending;
+            const sc = statusConfig[reg.status] || statusConfig.pending;
             return (
               <div
                 key={reg._id}
@@ -2055,10 +2796,16 @@ function Registrations() {
                     {student?.name?.charAt(0).toUpperCase() || "?"}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-800">{student?.name || "Unknown"}</p>
-                    <p className="text-xs text-gray-400 truncate">{student?.email}</p>
+                    <p className="text-sm font-semibold text-gray-800">
+                      {student?.name || "Unknown"}
+                    </p>
+                    <p className="text-xs text-gray-400 truncate">
+                      {student?.email}
+                    </p>
                     {student?.college && (
-                      <p className="text-xs text-gray-400 truncate">{student.college}</p>
+                      <p className="text-xs text-gray-400 truncate">
+                        {student.college}
+                      </p>
                     )}
                   </div>
                 </div>
@@ -2067,13 +2814,17 @@ function Registrations() {
                 <div className="hidden md:flex items-center min-w-0 flex-1">
                   <div className="flex items-center gap-2 min-w-0">
                     <FiCalendar size={13} className="text-gray-300 flex-shrink-0" />
-                    <span className="text-sm text-gray-500 truncate">{reg.eventTitle}</span>
+                    <span className="text-sm text-gray-500 truncate">
+                      {reg.eventTitle}
+                    </span>
                   </div>
                 </div>
 
                 {/* Right — status + actions */}
                 <div className="flex items-center gap-3 flex-shrink-0 pl-13 sm:pl-0">
-                  <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}>
+                  <span
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}
+                  >
                     <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
                     {sc.label}
                   </span>
@@ -2116,22 +2867,21 @@ function Registrations() {
   );
 }
 
-
 /* ================================================
-   ATTENDANCE SECTION
+   ATTENDANCE SECTION (unchanged)
 ================================================ */
 
 const NATIVE_SUPPORTED =
-  typeof window !== "undefined" &&
-  "BarcodeDetector" in window;
-
+  typeof window !== "undefined" && "BarcodeDetector" in window;
 
 /* ── Download helper ── */
 function triggerDownload(blob, filename) {
   const url = URL.createObjectURL(blob);
-  const a   = document.createElement("a");
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
   a.parentNode.removeChild(a);
   URL.revokeObjectURL(url);
 }
@@ -2141,7 +2891,7 @@ function triggerDownload(blob, filename) {
    Uses the Open XML SpreadsheetML format which Excel,
    Google Sheets, and LibreOffice all open natively.    ── */
 function buildExcel(eventTitle, rows) {
-  const cols   = ["Student Name", "Email", "College", "Attended", "Attended At"];
+  const cols = ["Student Name", "Email", "College", "Attended", "Attended At"];
   const fields = ["name", "email", "college", "attended", "attendedAt"];
 
   const colLetter = (i) => String.fromCharCode(65 + i); // A, B, C …
@@ -2166,19 +2916,27 @@ function buildExcel(eventTitle, rows) {
 
   // Pre-register all strings
   cols.forEach(si);
-  rows.forEach(r => fields.forEach(f => si(r[f])));
+  rows.forEach((r) => fields.forEach((f) => si(r[f])));
 
   // Sheet rows XML
-  const headerCells = cols.map((c, i) =>
-    `<c r="${colLetter(i)}1" t="s" s="1"><v>${si(c)}</v></c>`
-  ).join("");
+  const headerCells = cols
+    .map(
+      (c, i) =>
+        `<c r="${colLetter(i)}1" t="s" s="1"><v>${si(c)}</v></c>`
+    )
+    .join("");
 
-  const dataRows = rows.map((r, ri) => {
-    const cells = fields.map((f, ci) =>
-      `<c r="${colLetter(ci)}${ri + 2}" t="s"><v>${si(r[f])}</v></c>`
-    ).join("");
-    return `<row r="${ri + 2}">${cells}</row>`;
-  }).join("");
+  const dataRows = rows
+    .map((r, ri) => {
+      const cells = fields
+        .map(
+          (f, ci) =>
+            `<c r="${colLetter(ci)}${ri + 2}" t="s"><v>${si(r[f])}</v></c>`
+        )
+        .join("");
+      return `<row r="${ri + 2}">${cells}</row>`;
+    })
+    .join("");
 
   const sheetXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
@@ -2198,7 +2956,7 @@ function buildExcel(eventTitle, rows) {
 
   const sharedStringsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${strings.length}" uniqueCount="${strings.length}">
-${strings.map(s => `<si><t xml:space="preserve">${s}</t></si>`).join("\n")}
+${strings.map((s) => `<si><t xml:space="preserve">${s}</t></si>`).join("\n")}
 </sst>`;
 
   // Bold style for header row (style index 1)
@@ -2244,13 +3002,13 @@ ${strings.map(s => `<si><t xml:space="preserve">${s}</t></si>`).join("\n")}
 
   // Pack into ZIP (xlsx is a ZIP)
   const files = {
-    "[Content_Types].xml"         : contentTypesXml,
-    "_rels/.rels"                  : topRelsXml,
-    "xl/workbook.xml"              : workbookXml,
-    "xl/_rels/workbook.xml.rels"   : relsXml,
-    "xl/worksheets/sheet1.xml"     : sheetXml,
-    "xl/sharedStrings.xml"         : sharedStringsXml,
-    "xl/styles.xml"                : stylesXml,
+    "[Content_Types].xml": contentTypesXml,
+    "_rels/.rels": topRelsXml,
+    "xl/workbook.xml": workbookXml,
+    "xl/_rels/workbook.xml.rels": relsXml,
+    "xl/worksheets/sheet1.xml": sheetXml,
+    "xl/sharedStrings.xml": sharedStringsXml,
+    "xl/styles.xml": stylesXml,
   };
 
   return zipFiles(files);
@@ -2258,96 +3016,111 @@ ${strings.map(s => `<si><t xml:space="preserve">${s}</t></si>`).join("\n")}
 
 /* ── Minimal ZIP builder ── */
 function zipFiles(files) {
-  const enc  = new TextEncoder();
+  const enc = new TextEncoder();
   const parts = [];
 
   const crc32 = (bytes) => {
-    let c = 0xFFFFFFFF;
-    const table = crc32.t || (crc32.t = (() => {
-      const t = new Uint32Array(256);
-      for (let i = 0; i < 256; i++) {
-        let n = i;
-        for (let j = 0; j < 8; j++) n = n & 1 ? 0xEDB88320 ^ (n >>> 1) : n >>> 1;
-        t[i] = n;
-      }
-      return t;
-    })());
-    for (let i = 0; i < bytes.length; i++) c = table[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
-    return (c ^ 0xFFFFFFFF) >>> 0;
+    let c = 0xffffffff;
+    const table =
+      crc32.t ||
+      (crc32.t = (() => {
+        const t = new Uint32Array(256);
+        for (let i = 0; i < 256; i++) {
+          let n = i;
+          for (let j = 0; j < 8; j++) n = n & 1 ? 0xedb88320 ^ (n >>> 1) : n >>> 1;
+          t[i] = n;
+        }
+        return t;
+      })());
+    for (let i = 0; i < bytes.length; i++) c = table[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
   };
 
-  const u16 = (n) => [n & 0xFF, (n >> 8) & 0xFF];
-  const u32 = (n) => [n & 0xFF, (n >> 8) & 0xFF, (n >> 16) & 0xFF, (n >> 24) & 0xFF];
+  const u16 = (n) => [n & 0xff, (n >> 8) & 0xff];
+  const u32 = (n) => [n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >> 24) & 0xff];
 
   const centralDir = [];
   let offset = 0;
 
   for (const [name, content] of Object.entries(files)) {
     const nameBytes = enc.encode(name);
-    const data      = enc.encode(content);
-    const crc       = crc32(data);
-    const size      = data.length;
+    const data = enc.encode(content);
+    const crc = crc32(data);
+    const size = data.length;
 
     const local = new Uint8Array([
-      0x50,0x4B,0x03,0x04,        // local file header sig
-      20,0,                        // version needed
-      0,0,                         // flags
-      0,0,                         // compression (stored)
-      0,0,0,0,                     // mod time/date
+      0x50, 0x4b, 0x03, 0x04, // local file header sig
+      20, 0, // version needed
+      0, 0, // flags
+      0, 0, // compression (stored)
+      0, 0, 0, 0, // mod time/date
       ...u32(crc),
-      ...u32(size), ...u32(size),  // compressed = uncompressed
-      ...u16(nameBytes.length), 0,0,
+      ...u32(size),
+      ...u32(size), // compressed = uncompressed
+      ...u16(nameBytes.length),
+      0, 0,
       ...nameBytes,
     ]);
 
     parts.push(local, data);
 
-    centralDir.push(new Uint8Array([
-      0x50,0x4B,0x01,0x02,
-      20,0, 20,0, 0,0, 0,0, 0,0,0,0,
-      ...u32(crc),
-      ...u32(size), ...u32(size),
-      ...u16(nameBytes.length), 0,0, 0,0, 0,0, 0,0, 0,0,0,0,
-      ...u32(offset),
-      ...nameBytes,
-    ]));
+    centralDir.push(
+      new Uint8Array([
+        0x50, 0x4b, 0x01, 0x02,
+        20, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ...u32(crc),
+        ...u32(size),
+        ...u32(size),
+        ...u16(nameBytes.length),
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ...u32(offset),
+        ...nameBytes,
+      ])
+    );
 
     offset += local.length + size;
   }
 
-  const cdSize   = centralDir.reduce((s, b) => s + b.length, 0);
-  const eocd     = new Uint8Array([
-    0x50,0x4B,0x05,0x06, 0,0, 0,0,
-    ...u16(centralDir.length), ...u16(centralDir.length),
-    ...u32(cdSize), ...u32(offset), 0,0,
+  const cdSize = centralDir.reduce((s, b) => s + b.length, 0);
+  const eocd = new Uint8Array([
+    0x50, 0x4b, 0x05, 0x06, 0, 0, 0, 0,
+    ...u16(centralDir.length),
+    ...u16(centralDir.length),
+    ...u32(cdSize),
+    ...u32(offset),
+    0, 0,
   ]);
 
-  const total = parts.reduce((s, b) => s + b.length, 0)
-    + centralDir.reduce((s, b) => s + b.length, 0)
-    + eocd.length;
+  const total =
+    parts.reduce((s, b) => s + b.length, 0) +
+    centralDir.reduce((s, b) => s + b.length, 0) +
+    eocd.length;
 
   const out = new Uint8Array(total);
   let pos = 0;
   for (const b of [...parts, ...centralDir, eocd]) {
-    out.set(b, pos); pos += b.length;
+    out.set(b, pos);
+    pos += b.length;
   }
 
-  return new Blob([out], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  return new Blob([out], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
 }
 
 function AttendanceSection() {
   const navigate = useNavigate();
-  const [events,          setEvents]          = useState([]);
+  const [events, setEvents] = useState([]);
   const [selectedEventId, setSelectedEventId] = useState("");
-  const [attendance,      setAttendance]      = useState(null);
-  const [loadingEvents,   setLoadingEvents]   = useState(true);
-  const [loadingReport,   setLoadingReport]   = useState(false);
-  const [search,          setSearch]          = useState("");
-  const [attendedFilter,  setAttendedFilter]  = useState("all");
-  const [exporting,       setExporting]       = useState(null);
-  const [codeInput,       setCodeInput]       = useState("");
-  const [codeLoading,     setCodeLoading]     = useState(false);
-  const [codeResult,      setCodeResult]      = useState(null); // { success, message }
+  const [attendance, setAttendance] = useState(null);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [search, setSearch] = useState("");
+  const [attendedFilter, setAttendedFilter] = useState("all");
+  const [exporting, setExporting] = useState(null);
+  const [codeInput, setCodeInput] = useState("");
+  const [codeLoading, setCodeLoading] = useState(false);
+  const [codeResult, setCodeResult] = useState(null); // { success, message }
 
   const handleVerifyCode = async () => {
     if (!codeInput.trim() || codeInput.trim().length !== 6 || !selectedEventId) return;
@@ -2388,19 +3161,31 @@ function AttendanceSection() {
         const { data } = await getMyEvents();
         setEvents(data);
         if (data.length > 0) setSelectedEventId(data[0]._id);
-      } catch { /**/ } finally { setLoadingEvents(false); }
+      } catch {
+        /**/
+      } finally {
+        setLoadingEvents(false);
+      }
     };
     load();
   }, []);
 
   useEffect(() => {
-    if (!selectedEventId) { setAttendance(null); return; }
+    if (!selectedEventId) {
+      setAttendance(null);
+      return;
+    }
     const load = async () => {
       try {
-        setLoadingReport(true); setAttendance(null);
+        setLoadingReport(true);
+        setAttendance(null);
         const { data } = await getEventAttendance(selectedEventId);
         setAttendance(data);
-      } catch { setAttendance(null); } finally { setLoadingReport(false); }
+      } catch {
+        setAttendance(null);
+      } finally {
+        setLoadingReport(false);
+      }
     };
     load();
   }, [selectedEventId]);
@@ -2411,54 +3196,82 @@ function AttendanceSection() {
       setExporting(format);
 
       const rows = attendance.registrations.map((r) => ({
-        name      : r.student?.name     || "",
-        email     : r.student?.email    || "",
-        college   : r.student?.college  || "",
-        attended  : r.attended ? "Yes" : "No",
+        name: r.student?.name || "",
+        email: r.student?.email || "",
+        college: r.student?.college || "",
+        attended: r.attended ? "Yes" : "No",
         attendedAt: r.attendedAt
-          ? new Date(r.attendedAt).toLocaleString("en-IN", { day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit", hour12:true })
+          ? new Date(r.attendedAt).toLocaleString("en-IN", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+            })
           : "",
       }));
 
-      const title    = attendance.eventTitle.replace(/\s+/g, "_");
+      const title = attendance.eventTitle.replace(/\s+/g, "_");
       const filename = `attendance_${title}_${Date.now()}`;
 
       if (format === "csv") {
         const header = ["Student Name", "Email", "College", "Attended", "Attended At"];
-        const lines  = [header, ...rows.map(r => [r.name, r.email, r.college, r.attended, r.attendedAt])];
-        const csv    = lines.map(row => row.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
-        triggerDownload(new Blob([csv], { type:"text/csv" }), filename + ".csv");
+        const lines = [
+          header,
+          ...rows.map((r) => [
+            r.name,
+            r.email,
+            r.college,
+            r.attended,
+            r.attendedAt,
+          ]),
+        ];
+        const csv = lines
+          .map((row) =>
+            row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")
+          )
+          .join("\n");
+        triggerDownload(new Blob([csv], { type: "text/csv" }), filename + ".csv");
       }
 
       if (format === "excel") {
         const blob = buildExcel(attendance.eventTitle, rows);
         triggerDownload(blob, filename + ".xlsx");
       }
-
-    } catch { /**/ } finally { setExporting(null); }
+    } catch {
+      /**/
+    } finally {
+      setExporting(null);
+    }
   };
 
   const filteredRows = (attendance?.registrations || []).filter((r) => {
-    const matchSearch = !search
-      || r.student?.name?.toLowerCase().includes(search.toLowerCase())
-      || r.student?.email?.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = attendedFilter === "all"
-      || (attendedFilter === "attended" && r.attended)
-      || (attendedFilter === "absent"   && !r.attended);
+    const matchSearch =
+      !search ||
+      r.student?.name?.toLowerCase().includes(search.toLowerCase()) ||
+      r.student?.email?.toLowerCase().includes(search.toLowerCase());
+    const matchFilter =
+      attendedFilter === "all" ||
+      (attendedFilter === "attended" && r.attended) ||
+      (attendedFilter === "absent" && !r.attended);
     return matchSearch && matchFilter;
   });
 
-  const attendedPct = attendance && attendance.totalApproved > 0
-    ? Math.round((attendance.totalAttended / attendance.totalApproved) * 100) : 0;
+  const attendedPct =
+    attendance && attendance.totalApproved > 0
+      ? Math.round((attendance.totalAttended / attendance.totalApproved) * 100)
+      : 0;
 
   return (
     <div className="space-y-5">
-
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h3 className="text-lg font-semibold text-gray-800">Attendance</h3>
-          <p className="text-sm text-gray-400 mt-0.5">Scan student QR codes and track event attendance</p>
+          <p className="text-sm text-gray-400 mt-0.5">
+            Scan student QR codes and track event attendance
+          </p>
         </div>
         {attendance && (
           <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -2467,9 +3280,11 @@ function AttendanceSection() {
               disabled={!!exporting}
               className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 active:scale-95 text-white text-sm font-semibold rounded-xl transition-all shadow-sm shadow-emerald-200"
             >
-              {exporting === "excel"
-                ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                : <FiDownload size={15} />}
+              {exporting === "excel" ? (
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <FiDownload size={15} />
+              )}
               Export Excel
             </button>
             <button
@@ -2477,9 +3292,11 @@ function AttendanceSection() {
               disabled={!!exporting}
               className="flex items-center gap-2 px-4 py-2.5 bg-white hover:bg-gray-50 disabled:opacity-60 active:scale-95 text-gray-700 text-sm font-semibold rounded-xl transition-all border border-gray-200"
             >
-              {exporting === "csv"
-                ? <span className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
-                : <FiDownload size={15} />}
+              {exporting === "csv" ? (
+                <span className="w-4 h-4 border-2 border-gray-300 border-t-gray-600 rounded-full animate-spin" />
+              ) : (
+                <FiDownload size={15} />
+              )}
               CSV
             </button>
           </div>
@@ -2502,7 +3319,9 @@ function AttendanceSection() {
             className="w-full sm:w-96 text-sm border border-gray-200 rounded-xl px-3.5 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-600/20 bg-white text-gray-800 font-medium transition-all"
           >
             {events.map((ev) => (
-              <option key={ev._id} value={ev._id}>{ev.title}</option>
+              <option key={ev._id} value={ev._id}>
+                {ev.title}
+              </option>
             ))}
           </select>
         )}
@@ -2515,7 +3334,9 @@ function AttendanceSection() {
             <FiCamera size={24} color="#fff" />
           </div>
           <div className="flex-1 text-center sm:text-left">
-            <h4 className="text-sm font-semibold text-gray-800">Scan QR codes at the event</h4>
+            <h4 className="text-sm font-semibold text-gray-800">
+              Scan QR codes at the event
+            </h4>
             <p className="text-xs text-gray-400 mt-1">
               Open the check-in scanner on your phone or tablet at the venue entrance.
               It runs independently — no dashboard navigation, just point and scan.
@@ -2539,8 +3360,12 @@ function AttendanceSection() {
               <FiCheckSquare size={16} className="text-amber-600" />
             </div>
             <div className="min-w-0">
-              <h4 className="text-sm font-semibold text-gray-800">Manual Code Entry</h4>
-              <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">Use when QR scan fails — enter the 6-digit code from student&#39;s ticket</p>
+              <h4 className="text-sm font-semibold text-gray-800">
+                Manual Code Entry
+              </h4>
+              <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                Use when QR scan fails — enter the 6-digit code from student's ticket
+              </p>
             </div>
           </div>
           <div className="flex flex-col sm:flex-row gap-2.5">
@@ -2549,7 +3374,10 @@ function AttendanceSection() {
               inputMode="numeric"
               maxLength={6}
               value={codeInput}
-              onChange={(e) => { setCodeInput(e.target.value.replace(/\D/g, "")); setCodeResult(null); }}
+              onChange={(e) => {
+                setCodeInput(e.target.value.replace(/\D/g, ""));
+                setCodeResult(null);
+              }}
               onKeyDown={(e) => e.key === "Enter" && handleVerifyCode()}
               placeholder="Enter 6-digit code"
               className="flex-1 text-center text-xl font-bold tracking-[0.4em] border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 bg-gray-50 transition-all placeholder:text-gray-300 placeholder:text-sm placeholder:tracking-normal placeholder:font-normal"
@@ -2560,18 +3388,22 @@ function AttendanceSection() {
               disabled={codeInput.length !== 6 || codeLoading || !selectedEventId}
               className="w-full sm:w-auto px-6 py-3 bg-amber-500 hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 text-white text-sm font-semibold rounded-xl transition-all flex items-center justify-center gap-2 flex-shrink-0"
             >
-              {codeLoading
-                ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                : <FiCheckCircle size={15} />}
+              {codeLoading ? (
+                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <FiCheckCircle size={15} />
+              )}
               Verify Code
             </button>
           </div>
           {codeResult && (
-            <div className={`mt-3 px-4 py-2.5 rounded-xl text-sm font-medium ${
-              codeResult.success
-                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                : "bg-red-50 text-red-600 border border-red-200"
-            }`}>
+            <div
+              className={`mt-3 px-4 py-2.5 rounded-xl text-sm font-medium ${
+                codeResult.success
+                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                  : "bg-red-50 text-red-600 border border-red-200"
+              }`}
+            >
               {codeResult.message}
             </div>
           )}
@@ -2587,7 +3419,9 @@ function AttendanceSection() {
               <FiUsers size={14} />
             </div>
             <div className="min-w-0 text-center sm:text-left">
-              <p className="text-base sm:text-xl font-bold text-gray-800 leading-none">{attendance.totalApproved}</p>
+              <p className="text-base sm:text-xl font-bold text-gray-800 leading-none">
+                {attendance.totalApproved}
+              </p>
               <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5">Approved</p>
             </div>
           </div>
@@ -2597,7 +3431,9 @@ function AttendanceSection() {
               <FiCheckCircle size={14} />
             </div>
             <div className="min-w-0 text-center sm:text-left">
-              <p className="text-base sm:text-xl font-bold text-gray-800 leading-none">{attendance.totalAttended}</p>
+              <p className="text-base sm:text-xl font-bold text-gray-800 leading-none">
+                {attendance.totalAttended}
+              </p>
               <p className="text-[10px] sm:text-xs text-gray-400 mt-0.5">Attended</p>
             </div>
           </div>
@@ -2605,12 +3441,14 @@ function AttendanceSection() {
           <div className="bg-white rounded-xl sm:rounded-2xl border border-gray-100 shadow-sm p-2.5 sm:p-4">
             <div className="flex justify-between items-center mb-1.5 sm:mb-2">
               <p className="text-[10px] sm:text-xs text-gray-400 font-medium">Rate</p>
-              <p className="text-[10px] sm:text-xs font-bold text-gray-700">{attendedPct}%</p>
+              <p className="text-[10px] sm:text-xs font-bold text-gray-700">
+                {attendedPct}%
+              </p>
             </div>
             <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
               <div
                 className="h-1.5 rounded-full bg-emerald-500 transition-all duration-700"
-                style={{ width:`${attendedPct}%` }}
+                style={{ width: `${attendedPct}%` }}
               />
             </div>
             <p className="text-[10px] sm:text-xs text-gray-400 mt-1 truncate">
@@ -2623,8 +3461,11 @@ function AttendanceSection() {
       {/* ── Attendance Table ── */}
       {loadingReport ? (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          {[1,2,3,4].map((i) => (
-            <div key={i} className="flex items-center gap-3 px-4 sm:px-6 py-4 border-b border-gray-50 animate-pulse">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="flex items-center gap-3 px-4 sm:px-6 py-4 border-b border-gray-50 animate-pulse"
+            >
               <div className="w-9 h-9 rounded-full bg-gray-100 flex-shrink-0" />
               <div className="flex-1 space-y-2">
                 <div className="h-3 bg-gray-100 rounded w-1/3" />
@@ -2639,7 +3480,10 @@ function AttendanceSection() {
           {/* Controls */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 px-4 sm:px-5 py-3.5 border-b border-gray-100">
             <div className="relative flex-1">
-              <FiSearch size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300" />
+              <FiSearch
+                size={13}
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-300"
+              />
               <input
                 type="text"
                 placeholder="Search name or email…"
@@ -2648,16 +3492,31 @@ function AttendanceSection() {
                 className="w-full pl-9 pr-8 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-500 bg-gray-50 transition-all"
               />
               {search && (
-                <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition">
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 transition"
+                >
                   <FiX size={13} />
                 </button>
               )}
             </div>
             <div className="flex flex-wrap gap-1.5">
               {[
-                { value:"all",      label:"All",      count: attendance.registrations.length },
-                { value:"attended", label:"Present",  count: attendance.totalAttended },
-                { value:"absent",   label:"Absent",   count: attendance.totalApproved - attendance.totalAttended },
+                {
+                  value: "all",
+                  label: "All",
+                  count: attendance.registrations.length,
+                },
+                {
+                  value: "attended",
+                  label: "Present",
+                  count: attendance.totalAttended,
+                },
+                {
+                  value: "absent",
+                  label: "Absent",
+                  count: attendance.totalApproved - attendance.totalAttended,
+                },
               ].map((f) => (
                 <button
                   key={f.value}
@@ -2669,9 +3528,15 @@ function AttendanceSection() {
                   }`}
                 >
                   {f.label}
-                  <span className={`ml-0.5 text-xs px-1.5 py-0.5 rounded-full font-bold ${
-                    attendedFilter === f.value ? "bg-white/20 text-white" : "bg-gray-100 text-gray-400"
-                  }`}>{f.count}</span>
+                  <span
+                    className={`ml-0.5 text-xs px-1.5 py-0.5 rounded-full font-bold ${
+                      attendedFilter === f.value
+                        ? "bg-white/20 text-white"
+                        : "bg-gray-100 text-gray-400"
+                    }`}
+                  >
+                    {f.count}
+                  </span>
                 </button>
               ))}
             </div>
@@ -2693,13 +3558,19 @@ function AttendanceSection() {
               >
                 {/* Avatar + info */}
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 transition-colors ${
-                    row.attended ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-400"
-                  }`}>
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 transition-colors ${
+                      row.attended
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-gray-100 text-gray-400"
+                    }`}
+                  >
                     {row.student?.name?.charAt(0)?.toUpperCase() || "?"}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 truncate leading-snug">{row.student?.name || "Unknown"}</p>
+                    <p className="text-sm font-semibold text-gray-800 truncate leading-snug">
+                      {row.student?.name || "Unknown"}
+                    </p>
                     <p className="text-xs text-gray-400 truncate">{row.student?.email}</p>
                   </div>
                 </div>
@@ -2709,7 +3580,11 @@ function AttendanceSection() {
                   {row.attended && row.attendedAt ? (
                     <p className="text-xs text-gray-400">
                       {new Date(row.attendedAt).toLocaleString("en-IN", {
-                        day:"numeric", month:"short", hour:"2-digit", minute:"2-digit", hour12:true,
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: true,
                       })}
                     </p>
                   ) : (
@@ -2740,32 +3615,586 @@ function AttendanceSection() {
           <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
             <FiAlertCircle size={20} className="text-gray-300" />
           </div>
-          <p className="text-sm text-gray-400">Could not load attendance data for this event.</p>
+          <p className="text-sm text-gray-400">
+            Could not load attendance data for this event.
+          </p>
         </div>
       ) : null}
     </div>
   );
 }
 
-
 /* ================================================
-   ADMIN LOGS
+   ADMIN LOGS (unchanged)
+================================================ */
+/* ================================================
+   ADMIN LOGS (Enhanced with SystemLogs UI)
 ================================================ */
 function AdminLogs() {
-  const logs = [
-    { action: "Approved event Hackathon 2024", admin: "Manikanta", time: "2 hours ago" },
-    { action: "Rejected registration for Cultural Fest", admin: "Shambhavi", time: "5 hours ago" },
-    { action: "Created new event Web Workshop", admin: "Manikanta", time: "1 day ago" },
+  const [logs, setLogs] = useState([]);
+  const [filteredLogs, setFilteredLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [search, setSearch] = useState("");
+  const [actionFilter, setActionFilter] = useState("ALL");
+  const [entityFilter, setEntityFilter] = useState("ALL");
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
+  const [page, setPage] = useState(1);
+  const [entities, setEntities] = useState([]);
+  const [stats, setStats] = useState({ 
+    total: 0, 
+    created: 0, 
+    updated: 0, 
+    deleted: 0,
+    approved: 0,
+    rejected: 0 
+  });
+
+  const LOGS_PER_PAGE = 10;
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        setLoading(true);
+        const res = await getAdminLogs();
+        const data = res.data || [];
+        setLogs(data);
+        setFilteredLogs(data);
+        
+        // Calculate stats
+        setStats({
+          total: data.length,
+          created: data.filter(l => l.action?.includes("CREATED")).length,
+          updated: data.filter(l => l.action?.includes("UPDATED")).length,
+          deleted: data.filter(l => l.action?.includes("DELETED")).length,
+          approved: data.filter(l => l.action?.includes("APPROVED")).length,
+          rejected: data.filter(l => l.action?.includes("REJECTED")).length,
+        });
+        
+        // Extract unique entities for filter
+        const entitySet = new Set();
+        data.forEach(log => {
+          if (log.targetEntityType) {
+            entitySet.add(log.targetEntityType);
+          }
+        });
+        setEntities(Array.from(entitySet).sort());
+      } catch (err) {
+        console.error("Failed to fetch logs:", err);
+        setError("Failed to load admin logs");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchLogs();
+  }, []);
+
+  // Filter Logic
+  useEffect(() => {
+    if (!logs.length) return;
+    
+    let temp = [...logs];
+
+    if (search) {
+      const searchLower = search.toLowerCase();
+      temp = temp.filter((log) => {
+        const action = log.action || "";
+        const adminName = log.adminId?.name || "";
+        const entityType = log.targetEntityType || "";
+        const details = JSON.stringify(log.details || "").toLowerCase();
+        return action.toLowerCase().includes(searchLower) ||
+          adminName.toLowerCase().includes(searchLower) ||
+          entityType.toLowerCase().includes(searchLower) ||
+          details.includes(searchLower);
+      });
+    }
+
+    if (actionFilter !== "ALL") {
+      temp = temp.filter((log) => log.action?.includes(actionFilter));
+    }
+
+    if (entityFilter !== "ALL") {
+      temp = temp.filter((log) => log.targetEntityType === entityFilter);
+    }
+
+    if (dateRange.start) {
+      const startDate = new Date(dateRange.start);
+      startDate.setHours(0, 0, 0, 0);
+      temp = temp.filter((log) => log.createdAt && new Date(log.createdAt) >= startDate);
+    }
+    if (dateRange.end) {
+      const endDate = new Date(dateRange.end);
+      endDate.setHours(23, 59, 59, 999);
+      temp = temp.filter((log) => log.createdAt && new Date(log.createdAt) <= endDate);
+    }
+
+    setFilteredLogs(temp);
+    setPage(1);
+  }, [search, actionFilter, entityFilter, dateRange.start, dateRange.end, logs]);
+
+  const getActionStyle = (action) => {
+    if (!action) return "bg-gray-100 text-gray-600";
+    if (action.includes("CREATED")) return "bg-emerald-100 text-emerald-700";
+    if (action.includes("UPDATED")) return "bg-amber-100 text-amber-700";
+    if (action.includes("DELETED")) return "bg-red-100 text-red-700";
+    if (action.includes("APPROVED")) return "bg-green-100 text-green-700";
+    if (action.includes("REJECTED")) return "bg-pink-100 text-pink-700";
+    return "bg-gray-100 text-gray-600";
+  };
+
+  const getEntityIcon = (type) => {
+    switch(type) {
+      case "Event":
+        return <FiCalendar size={12} />;
+      case "User":
+        return <FiUser size={12} />;
+      case "Registration":
+        return <FiCheckCircle size={12} />;
+      case "Discussion":
+        return <FiMessageSquare size={12} />;
+      default:
+        return <FiFileText size={12} />;
+    }
+  };
+
+  const getEntityBadgeStyle = (type) => {
+    const styles = {
+      Event: "bg-blue-100 text-blue-700",
+      User: "bg-purple-100 text-purple-700",
+      Registration: "bg-green-100 text-green-700",
+      Discussion: "bg-orange-100 text-orange-700",
+    };
+    return styles[type] || "bg-gray-100 text-gray-600";
+  };
+
+  const formatDate = (date) => {
+    if (!date) return "—";
+    try {
+      const d = new Date(date);
+      return d.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    } catch {
+      return "—";
+    }
+  };
+
+  const formatRelativeTime = (date) => {
+    if (!date) return "—";
+    try {
+      const d = new Date(date);
+      const now = new Date();
+      const diffMs = now - d;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return "Just now";
+      if (diffMins < 60) return `${diffMins} min ago`;
+      if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
+      if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
+      
+      return formatDate(date);
+    } catch {
+      return "—";
+    }
+  };
+
+  const getEntityDetails = (log) => {
+    const details = [];
+    
+    // Add title if present
+    if (log.details?.title) {
+      details.push(log.details.title);
+    }
+    // Add name if present
+    if (log.details?.name) {
+      details.push(log.details.name);
+    }
+    // Add email if present
+    if (log.details?.email) {
+      details.push(log.details.email);
+    }
+    // Add eventId reference if present
+    if (log.details?.eventId) {
+      details.push(`Event: ${log.details.eventId.substring(0, 8)}...`);
+    }
+    // Add target entity ID as fallback
+    if (details.length === 0 && log.targetEntityId) {
+      details.push(`ID: ${log.targetEntityId.substring(0, 8)}...`);
+    }
+    
+    return details.length > 0 ? details.join(" • ") : "—";
+  };
+
+  const clearFilters = () => {
+    setSearch("");
+    setActionFilter("ALL");
+    setEntityFilter("ALL");
+    setDateRange({ start: "", end: "" });
+  };
+
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / LOGS_PER_PAGE));
+  const paginatedLogs = filteredLogs.slice(
+    (page - 1) * LOGS_PER_PAGE,
+    page * LOGS_PER_PAGE
+  );
+
+  const statCards = [
+    { label: "Total Logs", value: stats.total, icon: <FiFileText size={14} />, color: "bg-purple-100 text-purple-600" },
+    { label: "Created", value: stats.created, icon: <FiPlus size={14} />, color: "bg-emerald-100 text-emerald-600" },
+    { label: "Updated", value: stats.updated, icon: <FiEdit2 size={14} />, color: "bg-amber-100 text-amber-600" },
+    { label: "Deleted", value: stats.deleted, icon: <FiTrash2 size={14} />, color: "bg-red-100 text-red-600" },
+    { label: "Approved", value: stats.approved, icon: <FiCheckCircle size={14} />, color: "bg-green-100 text-green-600" },
+    { label: "Rejected", value: stats.rejected, icon: <FiXCircle size={14} />, color: "bg-pink-100 text-pink-600" },
   ];
+
   return (
-    <div className="bg-white p-5 sm:p-6 rounded-xl shadow-md shadow-black/5">
-      <h3 className="mb-5 text-lg font-semibold">Admin Activity Logs</h3>
-      {logs.map((log, i) => (
-        <div key={i} className="p-4 border-b border-gray-200">
-          <div className="font-medium">{log.action}</div>
-          <div className="text-sm text-gray-500">By {log.admin} • {log.time}</div>
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+            <FiFileText size={22} className="text-purple-600" />
+            Admin Activity Logs
+          </h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Complete audit trail of all admin actions in your events
+          </p>
         </div>
-      ))}
+        <div className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+          Total: {stats.total} logs
+        </div>
+      </div>
+
+      {/* Stats Cards Row */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {statCards.map((stat, i) => (
+          <div
+            key={i}
+            className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 hover:shadow-md transition-all"
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium text-gray-500">
+                {stat.label}
+              </span>
+              <div className={`w-6 h-6 rounded-lg ${stat.color.split(" ")[0]} flex items-center justify-center ${stat.color.split(" ")[1]}`}>
+                {stat.icon}
+              </div>
+            </div>
+            <p className="text-xl font-bold text-gray-800">{stat.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters Bar */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Search Input */}
+            <div className="relative">
+              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+              <input
+                type="text"
+                placeholder="Search logs..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-gray-50"
+              />
+            </div>
+
+            {/* Action Filter */}
+            <select
+              value={actionFilter}
+              onChange={(e) => setActionFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-gray-50"
+            >
+              <option value="ALL">All Actions</option>
+              <option value="CREATED">Created</option>
+              <option value="UPDATED">Updated</option>
+              <option value="DELETED">Deleted</option>
+              <option value="APPROVED">Approved</option>
+              <option value="REJECTED">Rejected</option>
+            </select>
+
+            {/* Entity Filter */}
+            <select
+              value={entityFilter}
+              onChange={(e) => setEntityFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-gray-50"
+              disabled={entities.length === 0}
+            >
+              <option value="ALL">All Entities</option>
+              {entities.map((entity) => (
+                <option key={entity} value={entity}>
+                  {entity}
+                </option>
+              ))}
+            </select>
+
+            {/* Date Range */}
+            <div className="flex gap-2">
+              <input
+                type="date"
+                value={dateRange.start}
+                onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-gray-50"
+                placeholder="From"
+              />
+              <input
+                type="date"
+                value={dateRange.end}
+                onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-gray-50"
+                placeholder="To"
+              />
+            </div>
+          </div>
+
+          {/* Active Filters */}
+          {(search || actionFilter !== "ALL" || entityFilter !== "ALL" || dateRange.start || dateRange.end) && (
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
+              <div className="flex flex-wrap gap-2">
+                {search && (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 rounded-lg text-xs">
+                    <FiSearch size={10} />
+                    Search: "{search}"
+                    <button onClick={() => setSearch("")} className="hover:text-purple-900 ml-1">×</button>
+                  </span>
+                )}
+                {actionFilter !== "ALL" && (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs">
+                    <FiActivity size={10} />
+                    Action: {actionFilter}
+                    <button onClick={() => setActionFilter("ALL")} className="hover:text-amber-900 ml-1">×</button>
+                  </span>
+                )}
+                {entityFilter !== "ALL" && (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs">
+                    <FiTag size={10} />
+                    Entity: {entityFilter}
+                    <button onClick={() => setEntityFilter("ALL")} className="hover:text-blue-900 ml-1">×</button>
+                  </span>
+                )}
+                {dateRange.start && (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded-lg text-xs">
+                    <FiCalendar size={10} />
+                    From: {dateRange.start}
+                    <button onClick={() => setDateRange({ ...dateRange, start: "" })} className="hover:text-green-900 ml-1">×</button>
+                  </span>
+                )}
+                {dateRange.end && (
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded-lg text-xs">
+                    <FiCalendar size={10} />
+                    To: {dateRange.end}
+                    <button onClick={() => setDateRange({ ...dateRange, end: "" })} className="hover:text-green-900 ml-1">×</button>
+                  </span>
+                )}
+              </div>
+              <button
+                onClick={clearFilters}
+                className="text-xs text-red-500 hover:text-red-600 font-medium"
+              >
+                Clear All
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Logs Table */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="p-12 text-center">
+            <div className="inline-block w-8 h-8 border-2 border-gray-200 border-t-purple-600 rounded-full animate-spin" />
+            <p className="text-gray-500 text-sm mt-3">Loading logs...</p>
+          </div>
+        ) : error ? (
+          <div className="p-12 text-center">
+            <FiAlertTriangle size={32} className="text-red-300 mx-auto mb-3" />
+            <p className="text-gray-500 text-sm">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-3 text-purple-600 text-sm hover:underline"
+            >
+              Try Again
+            </button>
+          </div>
+        ) : filteredLogs.length === 0 ? (
+          <div className="p-12 text-center">
+            <FiFileText size={28} className="text-gray-300 mx-auto mb-3" />
+            <p className="text-gray-500 font-medium">No logs found</p>
+            <p className="text-xs text-gray-400 mt-1">
+              {(search || actionFilter !== "ALL" || entityFilter !== "ALL" || dateRange.start || dateRange.end)
+                ? "Try adjusting your filters"
+                : "No activity has been logged yet"}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Desktop Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Entity</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Details</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Admin</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Time</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {paginatedLogs.map((log) => (
+                    <tr key={log._id} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="px-5 py-3">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${getActionStyle(log.action)}`}>
+                          {log.action?.includes("CREATED") && <FiPlus size={10} />}
+                          {log.action?.includes("UPDATED") && <FiEdit2 size={10} />}
+                          {log.action?.includes("DELETED") && <FiTrash2 size={10} />}
+                          {log.action?.includes("APPROVED") && <FiCheckCircle size={10} />}
+                          {log.action?.includes("REJECTED") && <FiXCircle size={10} />}
+                          {log.action ? log.action.replace(/_/g, " ") : "Unknown"}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-1.5">
+                          {getEntityIcon(log.targetEntityType)}
+                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${getEntityBadgeStyle(log.targetEntityType)}`}>
+                            {log.targetEntityType || "—"}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3">
+                        <p className="text-sm text-gray-600 max-w-md truncate" title={getEntityDetails(log)}>
+                          {getEntityDetails(log)}
+                        </p>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-semibold text-xs">
+                            {log.adminId?.name ? log.adminId.name.charAt(0).toUpperCase() : "A"}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-gray-800">{log.adminId?.name || "Admin"}</p>
+                            <p className="text-xs text-gray-400">{log.adminId?.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-1">
+                            <FiClock size={12} className="text-gray-400" />
+                            <span className="text-xs text-gray-500">{formatRelativeTime(log.createdAt)}</span>
+                          </div>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {formatDate(log.createdAt)}
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/50">
+                <p className="text-xs text-gray-500">
+                  Showing {(page - 1) * LOGS_PER_PAGE + 1} to {Math.min(page * LOGS_PER_PAGE, filteredLogs.length)} of {filteredLogs.length} logs
+                </p>
+                <div className="flex gap-1">
+                  <button
+                    disabled={page === 1}
+                    onClick={() => setPage(page - 1)}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  >
+                    Previous
+                  </button>
+                  <div className="flex gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (page <= 3) {
+                        pageNum = i + 1;
+                      } else if (page >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = page - 2 + i;
+                      }
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setPage(pageNum)}
+                          className={`w-8 h-8 rounded-lg text-sm font-medium transition ${
+                            page === pageNum
+                              ? "bg-purple-600 text-white"
+                              : "border border-gray-200 text-gray-600 hover:bg-gray-100"
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button
+                    disabled={page === totalPages}
+                    onClick={() => setPage(page + 1)}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Export Button */}
+      {filteredLogs.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            onClick={() => {
+              const csvRows = [
+                ["Action", "Entity Type", "Entity Details", "Admin", "Admin Email", "Time"],
+                ...filteredLogs.map(log => [
+                  log.action || "",
+                  log.targetEntityType || "",
+                  getEntityDetails(log),
+                  log.adminId?.name || "Admin",
+                  log.adminId?.email || "",
+                  formatDate(log.createdAt)
+                ])
+              ];
+              const csvContent = csvRows.map(row => 
+                row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")
+              ).join("\n");
+              const blob = new Blob([csvContent], { type: "text/csv" });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.href = url;
+              link.setAttribute("download", `admin_logs_${new Date().toISOString().split("T")[0]}.csv`);
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              URL.revokeObjectURL(url);
+              toast.success("Logs exported successfully");
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition"
+          >
+            <FiDownload size={14} />
+            Export as CSV
+          </button>
+        </div>
+      )}
     </div>
   );
 }

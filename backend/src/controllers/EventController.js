@@ -1,4 +1,5 @@
 import Event from "../models/Event.js";
+import { logAdminAction } from "../services/loggerService.js";
 
 /* ===============================
    CREATE EVENT
@@ -64,6 +65,14 @@ export const createEvent = async (req, res) => {
         : null,
       createdBy: req.user._id,
     });
+
+    logAdminAction(
+  req.user,
+  "EVENT_CREATED",
+  event._id,
+  "Event",
+  { title: event.title }
+);
 
     res.status(201).json({
       message: "Event created successfully",
@@ -182,6 +191,14 @@ export const updateEvent = async (req, res) => {
       { new: true }
     );
 
+    logAdminAction(
+  req.user,
+  "EVENT_UPDATED",
+  event._id,
+  "Event",
+  { title: event.title }
+);
+
     res.status(200).json(updatedEvent);
   } catch (error) {
     res.status(500).json({
@@ -211,6 +228,14 @@ export const deleteEvent = async (req, res) => {
     }
 
     await event.deleteOne();
+
+    logAdminAction(
+  req.user,
+  "EVENT_DELETED",
+  event._id,
+  "Event",
+  { title: event.title }
+);
 
     res.status(200).json({
       message: "Event deleted successfully",
