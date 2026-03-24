@@ -14,6 +14,7 @@ import compression from "compression";      // ← add this
 import passport from "./src/config/passport.js";
 import certificateRoutes from "./src/routes/certificateRoutes.js";
 import discussionRoutes from "./src/routes/discussionRoutes.js";
+import feedbackRoutes from "./src/routes/FeedbackRoutes.js";
 
 
 
@@ -84,6 +85,7 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/registrations", registrationRoutes);
 app.use("/api/discussions", discussionRoutes);
 app.use("/api/certificates", certificateRoutes);
+app.use("/api/feedback", feedbackRoutes);
 
 
 // 404 handler

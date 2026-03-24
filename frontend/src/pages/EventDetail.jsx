@@ -7,6 +7,8 @@ import { motion } from "framer-motion";
 import Navbar from "../components/Navbar";
 import Footer from "../components/Footer";
 import { useAuth } from "../context/AuthContext";
+import ReviewsSection from "../components/ReviewsSection";
+
 import {
   FiArrowLeft,
   FiCalendar,
@@ -637,22 +639,19 @@ export default function EventDetail() {
               {/* ══════════════════════════════
                   REVIEWS TAB — placeholder for teammate
               ══════════════════════════════ */}
-              {activeTab === "reviews" && (
-                <motion.div
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
-                  className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center"
-                >
-                  <div className="w-16 h-16 rounded-2xl bg-amber-50 flex items-center justify-center mx-auto mb-4">
-                    <span className="text-3xl">⭐</span>
-                  </div>
-                  <p className="text-gray-700 font-semibold text-base mb-1">Reviews coming soon</p>
-                  <p className="text-gray-400 text-sm max-w-xs mx-auto">
-                    Attended students will be able to rate and review this event after it ends.
-                  </p>
-                </motion.div>
-              )}
+             {activeTab === "reviews" && (
+  <motion.div
+    initial={{ opacity: 0, y: 16 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.3 }}
+  >
+    <ReviewsSection
+      eventId={event._id}
+      eventStatus={status}
+      registrationStatus={registrationStatus}
+    />
+  </motion.div>
+)}
 
             </div>
 

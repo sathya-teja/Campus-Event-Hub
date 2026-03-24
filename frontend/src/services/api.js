@@ -142,4 +142,29 @@ export const editDiscussionReply   = (id, replyId, data)  => API.put(`/discussio
 export const deleteDiscussionReply = (id, replyId)        => API.delete(`/discussions/${id}/reply/${replyId}`);
 export const getDiscussionStats    = (eventId)            => API.get(`/discussions/event/${eventId}/stats`);
 
+
+
+/* ================= FEEDBACK APIs ================= */
+ 
+// Student: submit feedback for an attended, completed event
+export const submitFeedback       = (data)          => API.post("/feedback", data);
+ 
+// Student: get own feedback history
+export const getMyFeedback        = ()              => API.get("/feedback/my");
+ 
+// Student: edit own feedback (within 24 hours)
+export const updateFeedback       = (id, data)      => API.put(`/feedback/${id}`, data);
+ 
+// Student or admin: delete feedback
+export const deleteFeedback       = (id)            => API.delete(`/feedback/${id}`);
+ 
+// College admin: all feedback for a specific event (paginated)
+export const getEventFeedback     = (eventId, params) => API.get(`/feedback/event/${eventId}`, { params });
+ 
+// College admin: overall analytics across all events
+export const getAdminFeedbackAnalytics = ()         => API.get("/feedback/analytics");
+ 
+// College admin: detailed analytics for one event
+export const getEventFeedbackAnalytics = (eventId)  => API.get(`/feedback/analytics/${eventId}`);
+
 export default API;

@@ -8,6 +8,8 @@ import StatsCard from "../components/StatsCard";
 import Sidebar from "../components/Sidebar";
 import EventCard from "../components/EventCard";
 import { useAuth } from "../context/AuthContext";
+import FeedbackSection from "../components/FeedbackSection";
+// Also add FiStar to the react-icons import list:
 
 import {
   FiUsers,
@@ -41,6 +43,7 @@ import {
   FiSlash,
   FiClock,
   FiPercent,
+  FiStar,
 } from "react-icons/fi";
 
 
@@ -150,6 +153,7 @@ export default function AdminDashboard() {
             { key: "events", label: "Event Management", icon: <FiCalendar /> },
             { key: "registrations", label: "Registrations", icon: <FiCheckCircle /> },
             { key: "attendance", label: "Attendance", icon: <FiActivity /> },
+            { key: "feedback",       label: "Feedback",         icon: <FiStar />        }, // ← ADD THIS LINE
             { key: "logs", label: "Admin Logs", icon: <FiFileText /> },
           ]}
           onLogout={handleLogout}
@@ -171,6 +175,7 @@ export default function AdminDashboard() {
             {activeTab === "events" && <EventManagement />}
             {activeTab === "registrations" && <Registrations />}
             {activeTab === "attendance" && <AttendanceSection />}
+            {activeTab === "feedback" && <FeedbackSection />}
             {activeTab === "logs" && <AdminLogs />}
           </div>
         </main>
