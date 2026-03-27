@@ -113,23 +113,53 @@ export default function Navbar({ toggleSidebar, setSidebarOpen }) {
 
         {/* LEFT */}
         <div className="flex items-center gap-3">
-          <h1
-            onClick={() => navigate("/")}
-            className="text-xl font-bold text-blue-600 cursor-pointer tracking-tight"
-          >
-            CampusEventHub
-          </h1>
+          <div
+  onClick={() => navigate("/")}
+  className="flex items-center gap-2 cursor-pointer"
+>
+  {/* ORB LOGO */}
+  <img
+    src="/orb.svg"
+    alt="logo"
+    className="w-8 h-8 sm:w-10 sm:h-10 object-contain"
+  />
+
+  {/* TEXT + TAGLINE */}
+  <div className="flex flex-col justify-center leading-none">
+    
+    {/* Main Title */}
+    <span className="font-bold tracking-tight leading-none
+      text-sm sm:text-base md:text-lg">
+      
+      <span className="text-gray-700">Campus </span>
+      
+      <span className="bg-gradient-to-r from-blue-600 to-purple-500 bg-clip-text text-transparent">
+        EventHub
+      </span>
+    </span>
+
+    {/* Tagline */}
+    <span className="leading-none mt-[2px]
+      text-[8px] sm:text-[9px] md:text-[10px]
+      text-gray-500 font-medium  sm:text-gray-400" >
+      
+      Discover. Celebrate. Connect.
+    </span>
+
+  </div>
+</div>
         </div>
 
         {/* CENTER NAV */}
-        <nav className="hidden md:flex items-center gap-1 text-sm font-medium">
+        <nav className="hidden md:flex items-center gap-4 text-sm font-medium">
           <button
             onClick={() => navigate("/")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg transition ${
               isActive("/") ? "bg-blue-50 text-blue-700 font-semibold" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
             }`}
           >
-            <FiHome size={15} /> Home
+            {/* <FiHome size={15} /> */}
+             Home
           </button>
           <button
             onClick={() => navigate("/events")}
@@ -137,7 +167,8 @@ export default function Navbar({ toggleSidebar, setSidebarOpen }) {
               isActive("/events") ? "bg-blue-50 text-blue-700 font-semibold" : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
             }`}
           >
-            <FiCalendar size={15} /> Events
+            {/* <FiCalendar size={15} /> */}
+             Events
           </button>
           {/* Dashboard link — only show if user is logged in */}
           {!isGuest && (
@@ -149,7 +180,8 @@ export default function Navbar({ toggleSidebar, setSidebarOpen }) {
                   : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
               }`}
             >
-              <FiLayout size={15} /> Dashboard
+              {/* <FiLayout size={15} />  */}
+              Dashboard
             </button>
           )}
         </nav>
@@ -175,7 +207,7 @@ export default function Navbar({ toggleSidebar, setSidebarOpen }) {
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="sm:hidden p-2 rounded-md hover:bg-gray-100 transition text-gray-600"
             >
-              {mobileMenuOpen ? <FiX size={22} /> : <FiMenu size={22} />}
+              {mobileMenuOpen ? <FiX size={20} /> : <FiMenu size={20} />}
             </button>
           </>
         ) : (
@@ -185,9 +217,9 @@ export default function Navbar({ toggleSidebar, setSidebarOpen }) {
             {/* Sidebar toggle — mobile only, dashboard pages only */}
             {handleToggle && (
               <button
-                className="md:hidden p-2 rounded-md hover:bg-gray-100 transition"
-                onClick={() => handleToggle(true)}
-              >
+  className="md:hidden p-1.5 rounded-md hover:bg-gray-100 transition"
+  onClick={() => handleToggle(true)}
+>
                 <FiMenu size={22} className="text-gray-600" />
               </button>
             )}
@@ -198,22 +230,23 @@ export default function Navbar({ toggleSidebar, setSidebarOpen }) {
             {/* ── Avatar dropdown trigger ── */}
             <div ref={dropdownRef} className="relative">
             <button
-              onClick={() => setOpen(!open)}
-              className={`flex items-center gap-2.5 pl-1.5 pr-3 py-1.5 rounded-full border transition-all duration-150
-                ${open
-                  ? "bg-blue-50 border-blue-200"
-                  : "bg-gray-50 border-gray-200 hover:bg-blue-50 hover:border-blue-200"
-                }`}
-            >
+  onClick={() => setOpen(!open)}
+  className={`flex items-center gap-2.5 pl-1.5 pr-1.5 min-[321px]:pr-3 py-1.5 rounded-full border transition-all duration-150
+    ${open
+      ? "bg-blue-50 border-blue-200"
+      : "bg-gray-50 border-gray-200 hover:bg-blue-50 hover:border-blue-200"
+    }`}
+>
               <Avatar />
               <div className="hidden sm:block text-left leading-tight">
                 <p className="text-[13px] font-semibold text-gray-800 leading-none">{name}</p>
                 <p className="text-[11px] text-gray-500 mt-0.5">{formattedRole}</p>
               </div>
-              <FiChevronDown
-                size={14}
-                className={`text-gray-400 transition-transform duration-200 ml-0.5 ${open ? "rotate-180 text-blue-500" : ""}`}
-              />
+            
+<FiChevronDown
+  size={13}
+  className={`hidden min-[321px]:block  text-gray-400 transition-transform duration-200 ml-0.5 ${open ? "rotate-180 text-blue-500" : ""}`}
+/>
             </button>
 
             {open && (
