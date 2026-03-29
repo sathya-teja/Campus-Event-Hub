@@ -3,6 +3,8 @@ import crypto from "crypto";
 import Registration from "../models/Registration.js";
 import Event from "../models/Event.js";
 
+
+
 /*
 ========================================
 📲 GET QR CODE  (student only)
@@ -76,7 +78,7 @@ export const getTicket = async (req, res) => {
     }
 
     const registration = await Registration.findById(id)
-      .populate("userId", "name email college")
+      .populate("userId", "name email college profileImage")
       .populate("eventId", "title location startDate endDate category image")
       .lean();
 
@@ -249,7 +251,7 @@ export const getEventAttendance = async (req, res) => {
     }
 
     const registrations = await Registration.find({ eventId, status: "approved" })
-      .populate("userId", "name email college phone")
+      .populate("userId", "name email college phone profileImage")
       .sort({ attended: -1, createdAt: 1 })
       .lean();
 
@@ -310,7 +312,7 @@ export const verifyAttendanceCode = async (req, res) => {
     const registration = await Registration.findOne({
       attendanceCode: code.trim(),
       eventId,
-    }).populate("userId", "name email");
+    }).populate("userId", "name email profileImage");
 
     if (!registration) {
       return res.status(404).json({ message: "Invalid code. No matching registration found." });

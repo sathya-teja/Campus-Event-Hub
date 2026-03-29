@@ -46,11 +46,24 @@ export const sendEmail = async ({ to, subject, html }) => {
 ========================================
 */
 const emailHeader = `
-  <div style="background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 60%, #3b82f6 100%); padding: 28px 32px; border-radius: 8px 8px 0 0; text-align: center;">
-    <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-family: Arial, sans-serif; letter-spacing: 0.5px;">
-      🎓 CampusEventHub
+  <div style="background: linear-gradient(135deg, #1d4ed8 0%, #2563eb 60%, #3b82f6 100%);
+              padding: 24px;
+              text-align: center;
+              border-radius: 8px 8px 0 0;">
+    
+    <img 
+      src="https://res.cloudinary.com/drr9jcqaa/image/upload/f_auto,q_auto,w_80,h_80/fav_jqyclu"
+      alt="CampusEventHub Logo"
+      style="width: 60px; height: 60px; object-fit: contain; margin-bottom: 10px;"
+    />
+
+    <h1 style="margin: 0; color: #ffffff; font-size: 20px; font-family: Arial, sans-serif;">
+      CampusEventHub
     </h1>
-    <p style="margin: 6px 0 0; color: #bfdbfe; font-size: 13px; font-family: Arial, sans-serif;">Your Campus. Your Events.</p>
+
+    <p style="margin: 4px 0 0; color: #bfdbfe; font-size: 12px; font-family: Arial, sans-serif;">
+      Discover. Celebrate. Connect.
+    </p>
   </div>
 `;
 

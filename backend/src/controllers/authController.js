@@ -5,6 +5,7 @@ import crypto from "crypto";
 import nodemailer from "nodemailer";
 import { sendEmail, emailTemplates } from "../services/emailService.js";           // 🔔 NEW
 import { createAndSendNotification } from "./notificationController.js";           // 🔔 NEW
+import { logAdminAction } from "../services/loggerService.js";
 
 /*
 ========================================

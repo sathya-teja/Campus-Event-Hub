@@ -429,7 +429,8 @@ export default function Home() {
             {[
               { value: stats.total > 0 ? `${stats.total}+` : "50+", label: "Total Events", icon: <Calendar className="w-6 h-6" /> },
               { value: stats.colleges > 0 ? `${stats.colleges}+` : "10+", label: "Partner Colleges", icon: <Globe className="w-6 h-6" /> },
-              { value: "1,000+", label: "Registered Students", icon: <Users className="w-6 h-6" /> },
+              { value: stats.students > 0 ? `${stats.students}+` : "0", label: "Registered Students", icon: <Users className="w-6 h-6" /> },
+
               { value: stats.upcoming > 0 ? `${stats.upcoming}` : "20+", label: "Upcoming Events", icon: <TrendingUp className="w-6 h-6" /> },
             ].map((stat, i) => (
               <motion.div
@@ -814,7 +815,8 @@ function FallbackHeroCard() {
           initial={{ opacity: 0, x: 30 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.3 + i * 0.15 }}
-          className={`group relative bg-gradient-to-r ${item.color} border border-white/10 rounded-2xl overflow-hidden p-4 flex items-center gap-4 cursor-pointer hover:border-white/20 transition-all`}
+          className="group relative bg-white/5 border border-white/10 rounded-2xl overflow-hidden p-4 flex items-center gap-4"
+
         >
           <div className="w-16 h-12 rounded-xl bg-white/10 flex items-center justify-center text-2xl flex-shrink-0">
             {CAT_STYLES[item.cat]?.icon}

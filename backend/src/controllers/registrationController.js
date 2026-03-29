@@ -6,6 +6,7 @@ import { createAndSendNotification } from "./notificationController.js";
 import { sendEmail, emailTemplates } from "../services/emailService.js";
 import { logAdminAction } from "../services/loggerService.js";
 
+
 /*
 REGISTER FOR EVENT
 */
@@ -121,7 +122,7 @@ export const getEventRegistrations = async (req, res) => {
     }
 
     const registrations = await Registration.find({ eventId })
-      .populate("userId", "name email college phone")
+      .populate("userId", "name email college phone profileImage")
       .sort({ createdAt: -1 });
 
     res.json(registrations);
@@ -394,7 +395,7 @@ export const getAllRegistrations = async (req, res) => {
     const eventIds = events.map((e) => e._id);
 
     const registrations = await Registration.find({ eventId: { $in: eventIds } })
-      .populate("userId", "name email college phone")
+      .populate("userId", "name email college phone profileImage")
       .populate("eventId", "title")
       .sort({ createdAt: -1 })
       .lean();
@@ -413,6 +414,7 @@ HELPER: Format registrations data
 */
 const formatRegistrationData = (registrations, eventTitle) => {
   return registrations.map((reg) => ({
+    "Event Name": eventTitle || reg.eventId?.title || "Unknown",
     "Student Name": reg.userId?.name || "Unknown",
     "Email": reg.userId?.email || "N/A",
     "College": reg.userId?.college || "N/A",
@@ -602,7 +604,7 @@ export const exportRegistrationsCSV = async (req, res) => {
       return res.status(403).json({ message: "Access denied" });
 
     const registrations = await Registration.find({ eventId })
-      .populate("userId", "name email college phone")
+      .populate("userId", "name email college phone profileImage")
       .sort({ createdAt: -1 });
     if (registrations.length === 0)
       return res.status(400).json({ message: "No registrations to export" });
@@ -635,7 +637,7 @@ export const exportRegistrationsExcel = async (req, res) => {
       return res.status(403).json({ message: "Access denied" });
 
     const registrations = await Registration.find({ eventId })
-      .populate("userId", "name email college phone")
+      .populate("userId", "name email college phone profileImage")
       .sort({ createdAt: -1 });
     if (registrations.length === 0)
       return res.status(400).json({ message: "No registrations to export" });
@@ -675,7 +677,7 @@ export const exportRegistrationsPDF = async (req, res) => {
     }
 
     const registrations = await Registration.find({ eventId })
-      .populate("userId", "name email college phone")
+      .populate("userId", "name email college phone profileImage")
       .sort({ createdAt: -1 });
 
     if (registrations.length === 0) {
@@ -705,14 +707,16 @@ export const exportRegistrationsPDF = async (req, res) => {
     const PAD_Y_ROW   = 7;
 
     // Columns — widths sum to PAGE_W (762)
-    const cols = [
-      { label: "Student Name", key: "Student Name", w: 150 },
-      { label: "Email",        key: "Email",         w: 195 },
-      { label: "College",      key: "College",       w: 160 },
-      { label: "Phone",        key: "Phone",         w: 90  },
-      { label: "Status",       key: "Status",        w: 77  },
-      { label: "Date",         key: "Registered On", w: 90  },
-    ];
+    // 7 columns — widths sum to PAGE_W (761)
+const cols = [
+  { label: "Event Name",   key: "Event Name",    w: 150 },
+  { label: "Student Name", key: "Student Name",  w: 110 },
+  { label: "Email",        key: "Email",         w: 158 },
+  { label: "College",      key: "College",       w: 120 },
+  { label: "Phone",        key: "Phone",         w: 75  },
+  { label: "Status",       key: "Status",        w: 63  },
+  { label: "Date",         key: "Registered On", w: 85  },
+];
 
     // ── helper: draw one cell background (no text) ──────────────────────────
     const fillCell = (x, y, w, h, bgColor) => {
@@ -864,7 +868,7 @@ export const exportRegistrationsJSON = async (req, res) => {
       return res.status(403).json({ message: "Access denied" });
 
     const registrations = await Registration.find({ eventId })
-      .populate("userId", "name email college phone")
+      .populate("userId", "name email college phone   profileImage")
       .sort({ createdAt: -1 });
     if (registrations.length === 0)
       return res.status(400).json({ message: "No registrations to export" });
@@ -893,7 +897,7 @@ const getAllRegData = async (adminId) => {
   const events = await Event.find({ createdBy: adminId });
   const eventIds = events.map((e) => e._id);
   const registrations = await Registration.find({ eventId: { $in: eventIds } })
-    .populate("userId", "name email college phone")
+    .populate("userId", "name email college phone profileImage")
     .populate("eventId", "title")
     .sort({ createdAt: -1 });
   return { events, registrations };
@@ -1012,6 +1016,8 @@ export const exportAllRegistrationsJSON = async (req, res) => {
 /*
 EXPORT ALL REGISTRATIONS - PDF FORMAT
 */
+
+
 export const exportAllRegistrationsPDF = async (req, res) => {
   try {
     const adminId = req.user._id;
@@ -1020,7 +1026,7 @@ export const exportAllRegistrationsPDF = async (req, res) => {
     const eventIds = events.map((e) => e._id);
 
     const registrations = await Registration.find({ eventId: { $in: eventIds } })
-      .populate("userId", "name email college phone")
+      .populate("userId", "name email college phone profileImage")
       .populate("eventId", "title")
       .sort({ createdAt: -1 });
 
@@ -1041,15 +1047,16 @@ export const exportAllRegistrationsPDF = async (req, res) => {
     const PAD_Y_ROW   = 7;
 
     // 7 columns — widths sum to PAGE_W (761)
-    const cols = [
-      { label: "Event Name",   key: "Event Name",    w: 160 },
-      { label: "Student Name", key: "Student Name",  w: 120 },
-      { label: "Email",        key: "Email",         w: 168 },
-      { label: "College",      key: "College",       w: 130 },
-      { label: "Phone",        key: "Phone",         w: 80  },
-      { label: "Status",       key: "Status",        w: 63  },
-      { label: "Date",         key: "Registered On", w: 80  },
-    ];
+    // 7 columns — widths sum to PAGE_W (761)
+const cols = [
+  { label: "Event Name",   key: "Event Name",    w: 150 },
+  { label: "Student Name", key: "Student Name",  w: 110 },
+  { label: "Email",        key: "Email",         w: 158 },
+  { label: "College",      key: "College",       w: 120 },
+  { label: "Phone",        key: "Phone",         w: 75  },
+  { label: "Status",       key: "Status",        w: 63  },
+  { label: "Date",         key: "Registered On", w: 85  },
+];
 
     const doc = new PDFDocument({ margin: MARGIN, size: "A4", layout: "landscape" });
     res.setHeader("Content-Type", "application/pdf");
@@ -1177,7 +1184,7 @@ export const getMyEventStudents = async (req, res) => {
     const eventIds = events.map((e) => e._id);
 
     const registrations = await Registration.find({ eventId: { $in: eventIds } })
-      .populate("userId", "name email college phone status createdAt")
+      .populate("userId", "name email college phone profileImage status createdAt")
       .populate("eventId", "title")
       .lean();
 

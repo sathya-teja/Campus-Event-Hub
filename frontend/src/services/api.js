@@ -171,4 +171,13 @@ export const getEventFeedbackAnalytics = (eventId)  => API.get(`/feedback/analyt
 // Admin Logs API
 export const getAdminLogs = () => API.get("/admin-logs");
 
+
+/* ================= HEALTH CHECK APIs ================= */
+
+// Get platform health status
+export const getHealthStatus = () => API.get("/health/status");
+
+// Run manual health check
+export const runHealthCheck = () => API.post("/health/check");
+
 export default API;

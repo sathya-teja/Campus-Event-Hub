@@ -6,6 +6,7 @@ import Registration from "../models/Registration.js";
 import Event from "../models/Event.js";
 import User from "../models/User.js";
 
+
 /* ── helpers ─────────────────────────────────────────────── */
 function fmtDate(d) {
   return new Date(d).toLocaleDateString("en-IN", {

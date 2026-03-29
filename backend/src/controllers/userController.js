@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import User from "../models/User.js";
 import { sendEmail, emailTemplates } from "../services/emailService.js";           // 🔔 NEW
 import { createAndSendNotification } from "./notificationController.js";           // 🔔 NEW
+import { logAdminAction } from "../services/loggerService.js";
 
 /*
 ========================================
@@ -166,7 +167,7 @@ export const getAllUsers = async (req, res) => {
     }
 
     const users = await User.find(filter)
-      .select("name email role college status createdAt")
+      .select("name email role college status createdAt profileImage")
       .sort({ createdAt: -1 });
 
     res.status(200).json(users);

@@ -16,6 +16,7 @@ import certificateRoutes from "./src/routes/certificateRoutes.js";
 import discussionRoutes from "./src/routes/discussionRoutes.js";
 import feedbackRoutes from "./src/routes/FeedbackRoutes.js";
 import adminLogRoutes from "./src/routes/adminLogRoutes.js";
+import healthRoutes from "./src/routes/healthRoutes.js";
 
 
 
@@ -88,6 +89,8 @@ app.use("/api/discussions", discussionRoutes);
 app.use("/api/certificates", certificateRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/admin-logs", adminLogRoutes);
+app.use("/api/health", healthRoutes);
+
 
 
 // 404 handler

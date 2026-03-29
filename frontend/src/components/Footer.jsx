@@ -81,7 +81,12 @@ export default function Footer() {
             <ul className="space-y-3">
               <li className="flex items-start gap-2.5 text-sm text-gray-500">
                 <Mail size={15} className="mt-0.5 flex-shrink-0 text-blue-600" />
-                <span>support@campuseventhub.in</span>
+                <a 
+  href="mailto:campuseventhub.app@gmail.com"
+  className="hover:text-blue-600 transition-colors"
+>
+  campuseventhub.app@gmail.com
+</a>
               </li>
               <li className="flex items-start gap-2.5 text-sm text-gray-500">
                 <MapPin size={15} className="mt-0.5 flex-shrink-0 text-blue-600" />

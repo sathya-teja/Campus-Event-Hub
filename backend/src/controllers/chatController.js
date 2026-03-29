@@ -1,5 +1,6 @@
 import { getChatResponse } from "../services/aiService.js";
 
+
 const MAX_MESSAGE_LENGTH = 500;
 
 export const chatHandler = async (req, res) => {

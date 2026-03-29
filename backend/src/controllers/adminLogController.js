@@ -1,5 +1,6 @@
 import AdminLog from "../models/AdminLog.js";
 
+
 export const getLogs = async (req, res) => {
   try {
     let filter = {};
@@ -12,7 +13,7 @@ export const getLogs = async (req, res) => {
     const logs = await AdminLog.find(filter)
       .sort({ createdAt: -1 })
       .limit(50)
-      .populate("adminId", "name email");
+      .populate("adminId", "name email profileImage");
 
     res.json(logs);
   } catch (error) {

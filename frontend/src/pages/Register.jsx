@@ -70,14 +70,26 @@ export default function Register() {
           >
             {/* Mobile logo */}
             <div
-              className="flex lg:hidden items-center gap-2 justify-center mb-4 cursor-pointer"
-              onClick={() => navigate("/")}
-            >
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center">
-                <Calendar size={14} className="text-white" />
-              </div>
-              <span className="text-slate-800 font-bold text-lg">CampusEventHub</span>
-            </div>
+  className="flex lg:hidden items-center gap-2 justify-center mb-6 cursor-pointer"
+  onClick={() => navigate("/")}
+>
+  <img
+    src="/fav.svg"
+    alt="logo"
+    className="w-9 h-9 object-contain"
+  />
+
+  <div className="flex flex-col leading-none">
+    <span className="text-slate-800 font-bold text-lg">
+      Campus <span className="text-blue-600">EventHub</span>
+    </span>
+
+    {/* 👇 THIS is the "under tag" */}
+    <span className="text-[10px] text-slate-400">
+      Discover. Celebrate. Connect.
+    </span>
+  </div>
+</div>
 
             {/* Heading */}
             <div className="mb-4">
@@ -228,7 +240,7 @@ export default function Register() {
             </button>
 
             <p className="text-center text-slate-400 text-xs mt-4">
-              © 2025 CampusEventHub. All rights reserved.
+              © 2026 CampusEventHub. All rights reserved.
             </p>
           </motion.div>
         </div>
@@ -276,15 +288,28 @@ export default function Register() {
 
           {/* Logo */}
           <div
-            className="flex items-center gap-3 relative z-10 cursor-pointer"
-            onClick={() => navigate("/")}
-          >
-            <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
-              <Calendar size={18} className="text-white" />
-            </div>
-            <span className="text-white font-bold text-xl tracking-tight">CampusEventHub</span>
-          </div>
+  className="flex items-center gap-2 cursor-pointer"
+  onClick={() => navigate("/")}
+>
+  <img
+    src="/fav.svg"
+    alt="logo"
+    className="w-10 h-10 object-contain drop-shadow-md"
+  />
 
+  <div className="flex flex-col leading-none">
+    <span className="font-bold text-white text-base md:text-lg">
+      Campus{" "}
+      <span className="text-blue-200">
+        EventHub
+      </span>
+    </span>
+
+    <span className="text-[10px] text-blue-100">
+      Discover. Celebrate. Connect.
+    </span>
+  </div>
+</div>
           {/* Center */}
           <div className="relative z-10 space-y-8">
             <motion.div

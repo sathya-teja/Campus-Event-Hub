@@ -32,7 +32,7 @@ import EventCard from "../components/EventCard";
 import { useAuth } from "../context/AuthContext";
 import FeedbackSection from "../components/FeedbackSection";
 
-import { getAdminLogs } from "../services/api";
+import { getAdminLogs, BASE_URL } from "../services/api";
 import {
   FiUsers,
   FiFileText,
@@ -2240,14 +2240,26 @@ function EmptyState({ hasFilters, onClear, onCreate }) {
 }
 
 /* ================================================
-   USER MANAGEMENT (unchanged)
+   USER MANAGEMENT — Redesigned UI
+   Drop-in replacement. All logic/state preserved.
 ================================================ */
+
+
+// ── Shared avatar URL helper (mirrors Navbar.jsx) ──
+function getAvatarSrc(userObj) {
+  const img = userObj?.profileImage;
+  if (!img) return null;
+  return img.startsWith("http") ? img : `${BASE_URL}/uploads/${img}`;
+}
 function UserManagement() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
-
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const USERS_PER_PAGE = 10;
+ 
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true);
@@ -2260,171 +2272,337 @@ function UserManagement() {
       setLoading(false);
     }
   }, []);
-
+ 
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
-
-  const filtered = users.filter(
-    (u) =>
+ 
+  const filtered = users.filter((u) => {
+    const matchSearch =
       u.name?.toLowerCase().includes(search.toLowerCase()) ||
       u.email?.toLowerCase().includes(search.toLowerCase()) ||
-      u.college?.toLowerCase().includes(search.toLowerCase())
-  );
-
-  return (
-    <div>
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-800">
-            Student Management
-          </h3>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {loading
-              ? "Loading..."
-              : `${filtered.length} student${filtered.length !== 1 ? "s" : ""} registered`}
-          </p>
+      u.college?.toLowerCase().includes(search.toLowerCase());
+    const matchRole = roleFilter === "all" || (u.status || "active").toLowerCase() === roleFilter;
+    return matchSearch && matchRole;
+  });
+ 
+  useEffect(() => { setPage(1); }, [search, roleFilter]);
+ 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / USERS_PER_PAGE));
+  const paginated = filtered.slice((page - 1) * USERS_PER_PAGE, page * USERS_PER_PAGE);
+ 
+  const counts = {
+    all: users.length,
+    active: users.filter((u) => !u.status || u.status === "active").length,
+    approved: users.filter((u) => u.status === "approved").length,
+    pending: users.filter((u) => u.status === "pending").length,
+  };
+ 
+  const TAB_META = [
+    { key: "all",      label: "All",      activeBg: "bg-blue-600 text-white"    },
+    { key: "active",   label: "Active",   activeBg: "bg-emerald-600 text-white" },
+    { key: "approved", label: "Approved", activeBg: "bg-violet-600 text-white"  },
+    { key: "pending",  label: "Pending",  activeBg: "bg-amber-500 text-white"   },
+  ];
+ 
+  const STATUS_CFG = {
+    approved: { badge: "bg-emerald-50 text-emerald-700 ring-emerald-200", dot: "bg-emerald-500", label: "Approved" },
+    pending:  { badge: "bg-amber-50 text-amber-700 ring-amber-200",       dot: "bg-amber-400",   label: "Pending"  },
+    active:   { badge: "bg-blue-50 text-blue-700 ring-blue-200",          dot: "bg-blue-400",    label: "Active"   },
+    default:  { badge: "bg-gray-50 text-gray-600 ring-gray-200",          dot: "bg-gray-300",    label: "Active"   },
+  };
+ 
+  const getStatusCfg = (status) =>
+    STATUS_CFG[status?.toLowerCase()] || STATUS_CFG.default;
+ 
+  /* ── Loading skeleton ── */
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <div className="h-8 w-48 bg-gray-200 rounded-lg animate-pulse" />
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="h-12 bg-gray-50 border-b border-gray-100" />
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="flex items-center gap-4 px-6 py-4 border-b border-gray-50 animate-pulse">
+              <div className="w-9 h-9 rounded-full bg-gray-100 flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 bg-gray-100 rounded w-1/4" />
+                <div className="h-2.5 bg-gray-100 rounded w-2/5" />
+              </div>
+              <div className="h-5 w-24 bg-gray-100 rounded-full" />
+              <div className="h-5 w-16 bg-gray-100 rounded-lg" />
+            </div>
+          ))}
         </div>
       </div>
-
-      {/* Search */}
-      <div className="bg-white border border-gray-100 rounded-xl p-4 mb-4 shadow-sm">
-        <div className="relative">
-          <FiSearch
-            size={15}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-          />
+    );
+  }
+ 
+  return (
+    <div className="space-y-5">
+ 
+      {/* ── Page Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 tracking-tight">Student Management</h2>
+          <p className="text-sm text-gray-400 mt-0.5">
+            {filtered.length} {filtered.length === 1 ? "student" : "students"}
+            {roleFilter !== "all" && ` · ${TAB_META.find((t) => t.key === roleFilter)?.label}`}
+          </p>
+        </div>
+ 
+        {/* Summary stat chips */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-100 rounded-lg shadow-sm text-xs font-semibold text-gray-500">
+            <FiUsers size={13} className="text-blue-500" />
+            <span>{users.length} Total</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-100 rounded-lg shadow-sm text-xs font-semibold text-gray-500">
+            <FiCheckCircle size={13} className="text-emerald-500" />
+            <span>{counts.approved} Approved</span>
+          </div>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-100 rounded-lg shadow-sm text-xs font-semibold text-gray-500">
+            <FiAlertCircle size={13} className="text-amber-500" />
+            <span>{counts.pending} Pending</span>
+          </div>
+        </div>
+      </div>
+ 
+      {/* ── Filter Bar ── */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+        {/* Search */}
+        <div className="relative flex-1">
+          <FiSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search by name, email or college..."
+            placeholder="Search by name, email or college…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-9 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 bg-gray-50"
+            className="w-full pl-9 pr-8 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-gray-50 placeholder-gray-400"
           />
           {search && (
             <button
               onClick={() => setSearch("")}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
             >
-              <FiX size={14} />
+              <FiX size={13} />
             </button>
           )}
         </div>
-      </div>
-
-      {/* Content */}
-      {loading ? (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          {[1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className="flex items-center gap-4 px-6 py-4 border-b border-gray-50 animate-pulse"
+ 
+        {/* Status pill tabs */}
+        <div className="flex items-center gap-1.5 bg-gray-100 rounded-lg p-1">
+          {TAB_META.map(({ key, label, activeBg }) => (
+            <button
+              key={key}
+              onClick={() => setRoleFilter(key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
+                roleFilter === key
+                  ? `${activeBg} shadow-sm`
+                  : "text-gray-500 hover:text-gray-800"
+              }`}
             >
-              <div className="w-10 h-10 rounded-full bg-gray-100 flex-shrink-0" />
-              <div className="flex-1 space-y-2">
-                <div className="h-3.5 bg-gray-100 rounded w-1/3" />
-                <div className="h-3 bg-gray-100 rounded w-1/2" />
-              </div>
-              <div className="h-6 w-20 bg-gray-100 rounded-full" />
-            </div>
+              <span>{label}</span>
+              <span className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] leading-none ${
+                roleFilter === key ? "bg-white/25 text-white" : "bg-white text-gray-500"
+              }`}>
+                {counts[key] ?? filtered.length}
+              </span>
+            </button>
           ))}
         </div>
-      ) : error ? (
-        <div className="bg-white border border-red-100 rounded-xl p-10 text-center">
-          <FiAlertCircle size={32} className="text-red-400 mx-auto mb-3" />
-          <p className="text-gray-700 font-medium">{error}</p>
+      </div>
+ 
+      {/* ── Error State ── */}
+      {error ? (
+        <div className="bg-white border border-red-100 rounded-2xl p-16 text-center shadow-sm">
+          <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+            <FiAlertCircle size={26} className="text-red-400" />
+          </div>
+          <p className="text-gray-700 font-semibold text-base">{error}</p>
           <button
             onClick={fetchUsers}
-            className="mt-4 px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
+            className="mt-5 px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
           >
             Retry
           </button>
         </div>
+ 
+      /* ── Empty State ── */
       ) : filtered.length === 0 ? (
-        <div className="bg-white border border-gray-100 rounded-xl p-12 text-center">
-          <FiUsers size={36} className="text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-700 font-semibold">
-            {search
-              ? "No students match your search"
-              : "No students registered yet"}
+        <div className="bg-white border border-gray-100 rounded-2xl p-16 text-center shadow-sm">
+          <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-4">
+            <FiUsers size={26} className="text-gray-300" />
+          </div>
+          <p className="text-gray-700 font-semibold text-base">
+            {search || roleFilter !== "all" ? "No students match your filters" : "No students registered yet"}
           </p>
-          {search && (
+          <p className="text-sm text-gray-400 mt-1">
+            {search || roleFilter !== "all" ? "Try adjusting your search or filters." : "Students who register for your events will appear here."}
+          </p>
+          {(search || roleFilter !== "all") && (
             <button
-              onClick={() => setSearch("")}
-              className="mt-4 px-5 py-2 rounded-lg border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors"
+              onClick={() => { setSearch(""); setRoleFilter("all"); }}
+              className="mt-5 px-5 py-2 rounded-lg border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors"
             >
-              Clear Search
+              Clear Filters
             </button>
           )}
         </div>
+ 
+      /* ── Table ── */
       ) : (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          {/* Table header */}
-          <div className="hidden sm:grid grid-cols-[2fr_2fr_1fr_1fr] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-            <span>Student</span>
-            <span>College</span>
-            <span>Joined</span>
-            <span>Status</span>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* FIX: overflow-x-auto enables horizontal scroll on mobile */}
+          <div className="overflow-x-auto">
+            {/* FIX: min-w-[340px] prevents columns from squishing below a readable width */}
+            <table className="w-full text-base min-w-[340px]">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider w-8">#</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Student</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider hidden md:table-cell">College</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider hidden lg:table-cell">Joined</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {paginated.map((user, idx) => {
+                  const sc = getStatusCfg(user.status);
+                  const rowNum = (page - 1) * USERS_PER_PAGE + idx + 1;
+                  const initials = user.name
+                    ?.split(" ")
+                    .map((n) => n[0])
+                    .slice(0, 2)
+                    .join("")
+                    .toUpperCase() || "?";
+ 
+                  return (
+                    <tr
+                      key={user._id || idx}
+                      className="hover:bg-blue-50/30 transition-colors group"
+                    >
+                      {/* Row number */}
+                      <td className="px-5 py-4 text-sm text-gray-300 font-mono">{rowNum}</td>
+ 
+                      {/* Student */}
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-blue-100">
+                            {getAvatarSrc(user) ? (
+                              <img
+                                src={getAvatarSrc(user)}
+                                alt={user.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.target.style.display = "none";
+                                  e.target.nextSibling.style.display = "flex";
+                                }}
+                              />
+                            ) : null}
+                            <div
+                              className="w-full h-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-blue-600 font-bold text-sm"
+                              style={{ display: getAvatarSrc(user) ? "none" : "flex" }}
+                            >
+                              {initials}
+                            </div>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-800 text-sm truncate leading-tight">{user.name || "Unknown"}</p>
+                            <p className="text-sm text-gray-400 truncate mt-0.5">{user.email || "—"}</p>
+                          </div>
+                        </div>
+                      </td>
+ 
+                      {/* College */}
+                      <td className="px-5 py-4 hidden md:table-cell max-w-[200px]">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FiMapPin size={12} className="text-gray-300 flex-shrink-0" />
+                          <span className="text-sm text-gray-500 truncate">
+                            {user.college || <span className="text-gray-300">—</span>}
+                          </span>
+                        </div>
+                      </td>
+ 
+                      {/* Joined */}
+                      <td className="px-5 py-4 hidden lg:table-cell">
+                        <div className="flex items-center gap-1.5">
+                          <FiCalendar size={12} className="text-gray-300 flex-shrink-0" />
+                          <span className="text-sm text-gray-400 whitespace-nowrap">
+                            {user.createdAt
+                              ? new Date(user.createdAt).toLocaleDateString("en-IN", {
+                                  day: "numeric",
+                                  month: "short",
+                                  year: "numeric",
+                                })
+                              : "—"}
+                          </span>
+                        </div>
+                      </td>
+ 
+                      {/* Status — FIX: smaller badge on mobile, normal on sm+ */}
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs sm:text-sm font-semibold ring-1 ${sc.badge}`}>
+                          <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full flex-shrink-0 ${sc.dot}`} />
+                          {sc.label}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-
-          {/* Rows */}
-          {filtered.map((user, i) => (
-            <div
-              key={user._id || i}
-              className="flex flex-col sm:grid sm:grid-cols-[2fr_2fr_1fr_1fr] gap-2 sm:gap-4 px-6 py-4 border-b border-gray-50 last:border-b-0 hover:bg-gray-50/60 transition-colors"
-            >
-              {/* Student info */}
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm flex-shrink-0">
-                  {user.name?.charAt(0).toUpperCase() || "?"}
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">
-                    {user.name}
-                  </p>
-                  <p className="text-xs text-gray-400 truncate">{user.email}</p>
-                </div>
-              </div>
-
-              {/* College */}
-              <div className="flex items-center sm:min-w-0 pl-12 sm:pl-0">
-                <span className="text-sm text-gray-500 truncate">
-                  {user.college || "—"}
-                </span>
-              </div>
-
-              {/* Joined */}
-              <div className="flex items-center pl-12 sm:pl-0">
-                <span className="text-xs text-gray-400">
-                  {user.createdAt
-                    ? new Date(user.createdAt).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })
-                    : "—"}
-                </span>
-              </div>
-
-              {/* Status */}
-              <div className="flex items-center pl-12 sm:pl-0">
-                <span
-                  className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                    user.status === "approved"
-                      ? "bg-green-100 text-green-700"
-                      : user.status === "pending"
-                      ? "bg-yellow-100 text-yellow-700"
-                      : "bg-red-100 text-red-700"
-                  }`}
+ 
+          {/* ── Pagination ── */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100 bg-gray-50/60">
+              <p className="text-sm text-gray-400">
+                Showing{" "}
+                <span className="font-semibold text-gray-600">{(page - 1) * USERS_PER_PAGE + 1}</span>
+                –
+                <span className="font-semibold text-gray-600">{Math.min(page * USERS_PER_PAGE, filtered.length)}</span>
+                {" "}of{" "}
+                <span className="font-semibold text-gray-600">{filtered.length}</span>
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  disabled={page === 1}
+                  onClick={() => setPage(page - 1)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
                 >
-                  {user.status
-                    ? user.status.charAt(0).toUpperCase() + user.status.slice(1)
-                    : "Active"}
-                </span>
+                  <FiChevronLeft size={15} />
+                </button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pn;
+                  if (totalPages <= 5) pn = i + 1;
+                  else if (page <= 3) pn = i + 1;
+                  else if (page >= totalPages - 2) pn = totalPages - 4 + i;
+                  else pn = page - 2 + i;
+                  return (
+                    <button
+                      key={pn}
+                      onClick={() => setPage(pn)}
+                      className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-semibold transition ${
+                        page === pn
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "border border-gray-200 text-gray-500 hover:bg-gray-50"
+                      }`}
+                    >
+                      {pn}
+                    </button>
+                  );
+                })}
+                <button
+                  disabled={page === totalPages}
+                  onClick={() => setPage(page + 1)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  <FiChevronRight size={15} />
+                </button>
               </div>
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>
@@ -2432,8 +2610,12 @@ function UserManagement() {
 }
 
 /* ================================================
-   REGISTRATIONS (unchanged)
+   REGISTRATIONS — Redesigned UI
+   Drop-in replacement for the Registrations()
+   function in AdminDashboard.jsx
+   All logic/state/props are preserved exactly.
 ================================================ */
+
 function Registrations() {
   const [registrations, setRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2444,14 +2626,14 @@ function Registrations() {
   const [events, setEvents] = useState([]);
   const [exportFormat, setExportFormat] = useState("csv");
   const [exporting, setExporting] = useState(false);
+  const [page, setPage] = useState(1);
+  const REGS_PER_PAGE = 10;
 
   const fetchAll = useCallback(async () => {
     try {
       setLoading(true);
-      // Single request — returns { events, registrations } instead of N+1 calls
       const { data } = await getAllRegistrations();
       setEvents(data.events);
-      // Attach eventTitle to each registration for display/filtering
       const eventMap = Object.fromEntries(data.events.map((e) => [e._id, e.title]));
       setRegistrations(
         data.registrations.map((r) => ({
@@ -2466,9 +2648,7 @@ function Registrations() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const handleApprove = async (id) => {
     try {
@@ -2477,8 +2657,9 @@ function Registrations() {
       setRegistrations((prev) =>
         prev.map((r) => (r._id === id ? { ...r, status: "approved" } : r))
       );
+      toast.success("Registration approved");
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to approve");
+      toast.error(err.response?.data?.message || "Failed to approve");
     } finally {
       setActionId(null);
     }
@@ -2492,8 +2673,9 @@ function Registrations() {
       setRegistrations((prev) =>
         prev.map((r) => (r._id === id ? { ...r, status: "rejected" } : r))
       );
+      toast.success("Registration rejected");
     } catch (err) {
-      alert(err.response?.data?.message || "Failed to reject");
+      toast.error(err.response?.data?.message || "Failed to reject");
     } finally {
       setActionId(null);
     }
@@ -2502,64 +2684,26 @@ function Registrations() {
   const handleExportRegistrations = async () => {
     try {
       setExporting(true);
-
-      let response;
-      let filename;
-
+      let response, filename;
       if (selectedEvent === "all") {
-        // Export all events
         switch (exportFormat) {
-          case "csv":
-            response = await exportAllRegistrationsCSV();
-            filename = `all_registrations_${Date.now()}.csv`;
-            break;
-          case "excel":
-            response = await exportAllRegistrationsExcel();
-            filename = `all_registrations_${Date.now()}.xlsx`;
-            break;
-          case "pdf":
-            response = await exportAllRegistrationsPDF();
-            filename = `all_registrations_${Date.now()}.pdf`;
-            break;
-          case "json":
-            response = await exportAllRegistrationsJSON();
-            filename = `all_registrations_${Date.now()}.json`;
-            break;
-          default:
-            return;
+          case "csv":    response = await exportAllRegistrationsCSV();   filename = `all_registrations_${Date.now()}.csv`;  break;
+          case "excel":  response = await exportAllRegistrationsExcel(); filename = `all_registrations_${Date.now()}.xlsx`; break;
+          case "pdf":    response = await exportAllRegistrationsPDF();   filename = `all_registrations_${Date.now()}.pdf`;  break;
+          case "json":   response = await exportAllRegistrationsJSON();  filename = `all_registrations_${Date.now()}.json`; break;
+          default: return;
         }
       } else {
-        // Export single event
         const selectedEventObj = events.find((ev) => ev.title === selectedEvent);
-        if (!selectedEventObj) {
-          alert("Please select an event first");
-          setExporting(false);
-          return;
-        }
-
+        if (!selectedEventObj) { toast.error("Please select an event first"); return; }
         switch (exportFormat) {
-          case "csv":
-            response = await exportRegistrationsCSV(selectedEventObj._id);
-            filename = `registrations_${selectedEvent}_${Date.now()}.csv`;
-            break;
-          case "excel":
-            response = await exportRegistrationsExcel(selectedEventObj._id);
-            filename = `registrations_${selectedEvent}_${Date.now()}.xlsx`;
-            break;
-          case "pdf":
-            response = await exportRegistrationsPDF(selectedEventObj._id);
-            filename = `registrations_${selectedEvent}_${Date.now()}.pdf`;
-            break;
-          case "json":
-            response = await exportRegistrationsJSON(selectedEventObj._id);
-            filename = `registrations_${selectedEvent}_${Date.now()}.json`;
-            break;
-          default:
-            return;
+          case "csv":    response = await exportRegistrationsCSV(selectedEventObj._id);   filename = `registrations_${selectedEvent}_${Date.now()}.csv`;  break;
+          case "excel":  response = await exportRegistrationsExcel(selectedEventObj._id); filename = `registrations_${selectedEvent}_${Date.now()}.xlsx`; break;
+          case "pdf":    response = await exportRegistrationsPDF(selectedEventObj._id);   filename = `registrations_${selectedEvent}_${Date.now()}.pdf`;  break;
+          case "json":   response = await exportRegistrationsJSON(selectedEventObj._id);  filename = `registrations_${selectedEvent}_${Date.now()}.json`; break;
+          default: return;
         }
       }
-
-      // Create download link
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement("a");
       link.href = url;
@@ -2568,9 +2712,9 @@ function Registrations() {
       link.click();
       link.parentNode.removeChild(link);
       window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error("Export failed:", error);
-      alert("Failed to export registrations");
+      toast.success("Export successful");
+    } catch {
+      toast.error("Failed to export registrations");
     } finally {
       setExporting(false);
     }
@@ -2578,13 +2722,13 @@ function Registrations() {
 
   const counts = {
     all: registrations.length,
-    pending: registrations.filter((r) => r.status === "pending").length,
+    pending:  registrations.filter((r) => r.status === "pending").length,
     approved: registrations.filter((r) => r.status === "approved").length,
     rejected: registrations.filter((r) => r.status === "rejected").length,
   };
 
   const filtered = registrations.filter((r) => {
-    const matchEvent = selectedEvent === "all" || r.eventTitle === selectedEvent;
+    const matchEvent  = selectedEvent === "all" || r.eventTitle === selectedEvent;
     const matchStatus = statusTab === "all" || r.status === statusTab;
     const matchSearch =
       !search ||
@@ -2594,56 +2738,42 @@ function Registrations() {
     return matchEvent && matchStatus && matchSearch;
   });
 
-  const statusConfig = {
-    pending: {
-      label: "Pending",
-      bg: "bg-amber-50",
-      text: "text-amber-700",
-      border: "border-amber-200",
-      dot: "bg-amber-400",
-    },
-    approved: {
-      label: "Approved",
-      bg: "bg-green-50",
-      text: "text-green-700",
-      border: "border-green-200",
-      dot: "bg-green-500",
-    },
-    rejected: {
-      label: "Rejected",
-      bg: "bg-red-50",
-      text: "text-red-700",
-      border: "border-red-200",
-      dot: "bg-red-400",
-    },
+  // Reset page when filters change
+  useEffect(() => { setPage(1); }, [search, selectedEvent, statusTab]);
+
+  const totalPages  = Math.max(1, Math.ceil(filtered.length / REGS_PER_PAGE));
+  const paginated   = filtered.slice((page - 1) * REGS_PER_PAGE, page * REGS_PER_PAGE);
+
+  /* ── status badge config ── */
+  const STATUS = {
+    pending:  { label: "Pending",  dot: "bg-amber-400",  badge: "bg-amber-50 text-amber-700 ring-amber-200"  },
+    approved: { label: "Approved", dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
+    rejected: { label: "Rejected", dot: "bg-red-400",    badge: "bg-red-50 text-red-600 ring-red-200"        },
   };
 
+  const TAB_META = [
+    { key: "all",      label: "All",      color: "text-gray-600",    activeBg: "bg-blue-600 text-white"   },
+    { key: "pending",  label: "Pending",  color: "text-amber-600",   activeBg: "bg-amber-500 text-white"  },
+    { key: "approved", label: "Approved", color: "text-emerald-600", activeBg: "bg-emerald-600 text-white" },
+    { key: "rejected", label: "Rejected", color: "text-red-500",     activeBg: "bg-red-500 text-white"    },
+  ];
+
+  /* ── Loading skeleton ── */
   if (loading) {
     return (
-      <div>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-800">
-              Registrations
-            </h3>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Loading registrations...
-            </p>
-          </div>
-        </div>
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="flex items-center gap-4 px-6 py-5 border-b border-gray-50 animate-pulse"
-            >
-              <div className="w-10 h-10 rounded-full bg-gray-100 flex-shrink-0" />
+      <div className="space-y-4">
+        <div className="h-8 w-48 bg-gray-200 rounded-lg animate-pulse" />
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="h-12 bg-gray-50 border-b border-gray-100" />
+          {[1,2,3,4,5].map(i => (
+            <div key={i} className="flex items-center gap-4 px-6 py-4 border-b border-gray-50 animate-pulse">
+              <div className="w-9 h-9 rounded-full bg-gray-100 flex-shrink-0" />
               <div className="flex-1 space-y-2">
-                <div className="h-3.5 bg-gray-100 rounded w-1/4" />
-                <div className="h-3 bg-gray-100 rounded w-2/5" />
+                <div className="h-3 bg-gray-100 rounded w-1/4" />
+                <div className="h-2.5 bg-gray-100 rounded w-2/5" />
               </div>
-              <div className="h-6 w-24 bg-gray-100 rounded-full" />
-              <div className="h-8 w-20 bg-gray-100 rounded-lg" />
+              <div className="h-5 w-24 bg-gray-100 rounded-full" />
+              <div className="h-6 w-20 bg-gray-100 rounded-lg" />
             </div>
           ))}
         </div>
@@ -2652,215 +2782,296 @@ function Registrations() {
   }
 
   return (
-    <div>
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+    <div className="space-y-5">
+
+      {/* ── Page Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h3 className="text-lg font-semibold text-gray-800">
-            Registrations
-          </h3>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {filtered.length} registration{filtered.length !== 1 ? "s" : ""} found
+          <h2 className="text-xl font-bold text-gray-900 tracking-tight">Registrations</h2>
+          <p className="text-sm text-gray-400 mt-0.5">
+            {filtered.length} {filtered.length === 1 ? "entry" : "entries"}
+            {statusTab !== "all" && ` · ${TAB_META.find(t => t.key === statusTab)?.label}`}
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          {/* Event filter */}
+
+        {/* Export controls */}
+        <div className="flex items-center gap-2 flex-wrap">
           {events.length > 0 && (
             <select
               value={selectedEvent}
               onChange={(e) => setSelectedEvent(e.target.value)}
-              className="text-sm border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-600/20 bg-white"
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-white text-gray-700 min-w-[140px]"
             >
               <option value="all">All Events</option>
               {events.map((ev) => (
-                <option key={ev._id} value={ev.title}>
-                  {ev.title}
-                </option>
+                <option key={ev._id} value={ev.title}>{ev.title}</option>
               ))}
             </select>
           )}
-
-          {/* Export section */}
-          <div className="flex items-center gap-2">
-            <select
-              value={exportFormat}
-              onChange={(e) => setExportFormat(e.target.value)}
-              className="px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 outline-none focus:ring-2 focus:ring-blue-600/20"
-            >
-              <option value="csv">CSV</option>
-              <option value="excel">Excel</option>
-              <option value="pdf">PDF</option>
-              <option value="json">JSON</option>
-            </select>
-            <button
-              onClick={handleExportRegistrations}
-              disabled={exporting}
-              className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap"
-            >
-              {exporting ? (
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <FiDownload size={16} />
-              )}
-              Export
-            </button>
+          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-lg px-1 py-1">
+            {["csv","excel","pdf","json"].map(fmt => (
+              <button
+                key={fmt}
+                onClick={() => setExportFormat(fmt)}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all uppercase tracking-wide ${
+                  exportFormat === fmt
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "text-gray-400 hover:text-gray-700"
+                }`}
+              >
+                {fmt}
+              </button>
+            ))}
           </div>
+          <button
+            onClick={handleExportRegistrations}
+            disabled={exporting}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap shadow-sm"
+          >
+            {exporting
+              ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              : <FiDownload size={14} />
+            }
+            Export
+          </button>
         </div>
       </div>
 
-      {/* Status Tabs */}
-      <div className="flex gap-2 mb-4 flex-wrap">
-        {["all", "pending", "approved", "rejected"].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setStatusTab(tab)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-all ${
-              statusTab === tab
-                ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                : "bg-white text-gray-500 border-gray-200 hover:bg-gray-50"
-            }`}
-          >
-            {tab !== "all" && (
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  statusTab === tab ? "bg-white" : statusConfig[tab]?.dot
-                }`}
-              />
-            )}
-            <span className="capitalize">
-              {tab === "all" ? "All" : statusConfig[tab].label}
-            </span>
-            <span
-              className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${
-                statusTab === tab
-                  ? "bg-white/20 text-white"
-                  : "bg-gray-100 text-gray-500"
-              }`}
-            >
-              {counts[tab]}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* Search */}
-      <div className="bg-white border border-gray-100 rounded-xl p-4 mb-4 shadow-sm">
-        <div className="relative">
-          <FiSearch
-            size={15}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-          />
+      {/* ── Filter Bar ── */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+        {/* Search */}
+        <div className="relative flex-1">
+          <FiSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search by student name, email or event..."
+            placeholder="Search student, email or event…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-9 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 bg-gray-50"
+            className="w-full pl-9 pr-8 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-gray-50 placeholder-gray-400"
           />
           {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
-              <FiX size={14} />
+            <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+              <FiX size={13} />
             </button>
           )}
         </div>
+
+        {/* Status pill tabs */}
+        <div className="flex items-center gap-1.5 bg-gray-100 rounded-lg p-1">
+          {TAB_META.map(({ key, label, activeBg }) => (
+            <button
+              key={key}
+              onClick={() => setStatusTab(key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
+                statusTab === key
+                  ? `${activeBg} shadow-sm`
+                  : "text-gray-500 hover:text-gray-800"
+              }`}
+            >
+              <span>{label}</span>
+              <span className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] leading-none ${
+                statusTab === key ? "bg-white/25 text-white" : "bg-white text-gray-500"
+              }`}>
+                {counts[key]}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* List */}
+      {/* ── Table ── */}
       {filtered.length === 0 ? (
-        <div className="bg-white border border-gray-100 rounded-xl p-12 text-center">
-          <FiCheckCircle size={36} className="text-gray-300 mx-auto mb-3" />
-          <p className="text-gray-700 font-semibold">
-            No registrations found
-          </p>
-          <p className="text-sm text-gray-400 mt-1">
-            Try changing the filters or search term.
-          </p>
+        <div className="bg-white border border-gray-100 rounded-2xl p-16 text-center shadow-sm">
+          <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-4">
+            <FiCheckCircle size={26} className="text-gray-300" />
+          </div>
+          <p className="text-gray-700 font-semibold text-base">No registrations found</p>
+          <p className="text-sm text-gray-400 mt-1">Try adjusting your filters or search term.</p>
+          {(search || statusTab !== "all" || selectedEvent !== "all") && (
+            <button
+              onClick={() => { setSearch(""); setStatusTab("all"); setSelectedEvent("all"); }}
+              className="mt-5 px-5 py-2 rounded-lg border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors"
+            >
+              Clear Filters
+            </button>
+          )}
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-          {filtered.map((reg, i) => {
-            const student = reg.userId;
-            const isActing = actionId === reg._id;
-            const sc = statusConfig[reg.status] || statusConfig.pending;
-            return (
-              <div
-                key={reg._id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-4 border-b border-gray-50 last:border-b-0 hover:bg-gray-50/60 transition-colors"
-              >
-                {/* Left — student info */}
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm flex-shrink-0">
-                    {student?.name?.charAt(0).toUpperCase() || "?"}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-gray-800">
-                      {student?.name || "Unknown"}
-                    </p>
-                    <p className="text-xs text-gray-400 truncate">
-                      {student?.email}
-                    </p>
-                    {student?.college && (
-                      <p className="text-xs text-gray-400 truncate">
-                        {student.college}
-                      </p>
-                    )}
-                  </div>
-                </div>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          {/* Table Head */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-base">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider w-8">#</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Student</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider hidden md:table-cell">Event</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider hidden lg:table-cell">College</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider hidden lg:table-cell">Applied</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Status</th>
+                  <th className="px-5 py-3.5 text-right text-xs font-semibold text-gray-400 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {paginated.map((reg, idx) => {
+                  const student  = reg.userId;
+                  const isActing = actionId === reg._id;
+                  const sc       = STATUS[reg.status] || STATUS.pending;
+                  const rowNum   = (page - 1) * REGS_PER_PAGE + idx + 1;
 
-                {/* Middle — event name */}
-                <div className="hidden md:flex items-center min-w-0 flex-1">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FiCalendar size={13} className="text-gray-300 flex-shrink-0" />
-                    <span className="text-sm text-gray-500 truncate">
-                      {reg.eventTitle}
-                    </span>
-                  </div>
-                </div>
+                  return (
+                    <tr
+                      key={reg._id}
+                      className="hover:bg-blue-50/30 transition-colors group"
+                    >
+                      {/* Row number */}
+                      <td className="px-5 py-4 text-sm text-gray-300 font-mono">{rowNum}</td>
 
-                {/* Right — status + actions */}
-                <div className="flex items-center gap-3 flex-shrink-0 pl-13 sm:pl-0">
-                  <span
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${sc.bg} ${sc.text} ${sc.border}`}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${sc.dot}`} />
-                    {sc.label}
-                  </span>
+                      {/* Student — avatar + name + email */}
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-blue-100">
+                            {getAvatarSrc(student) ? (
+                              <img
+                                src={getAvatarSrc(student)}
+                                alt={student?.name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.target.style.display = "none";
+                                  e.target.nextSibling.style.display = "flex";
+                                }}
+                              />
+                            ) : null}
+                            <div
+                              className="w-full h-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-blue-600 font-bold text-sm"
+                              style={{ display: getAvatarSrc(student) ? "none" : "flex" }}
+                            >
+                              {student?.name?.charAt(0).toUpperCase() || "?"}
+                            </div>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-800 text-sm truncate leading-tight">
+                              {student?.name || "Unknown"}
+                            </p>
+                            <p className="text-sm text-gray-400 truncate mt-0.5">{student?.email || "—"}</p>
+                          </div>
+                        </div>
+                      </td>
 
-                  {reg.status === "pending" && (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleApprove(reg._id)}
-                        disabled={isActing}
-                        className="px-3.5 py-1.5 rounded-lg bg-green-600 text-white text-xs font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                      >
-                        {isActing ? (
-                          <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      {/* Event */}
+                      <td className="px-5 py-4 hidden md:table-cell max-w-[220px]">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FiCalendar size={12} className="text-gray-300 flex-shrink-0" />
+                          <span className="text-sm text-gray-600 truncate">{reg.eventTitle || "—"}</span>
+                        </div>
+                      </td>
+
+                      {/* College */}
+                      <td className="px-5 py-4 hidden lg:table-cell max-w-[180px]">
+                        <span className="text-sm text-gray-500 truncate block">
+                          {student?.college || <span className="text-gray-300">—</span>}
+                        </span>
+                      </td>
+
+                      {/* Applied date */}
+                      <td className="px-5 py-4 hidden lg:table-cell">
+                        <span className="text-sm text-gray-400 whitespace-nowrap">
+                          {reg.createdAt ? formatDate(reg.createdAt) : "—"}
+                        </span>
+                      </td>
+
+                      {/* Status badge */}
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold ring-1 ${sc.badge}`}>
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${sc.dot}`} />
+                          {sc.label}
+                        </span>
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-5 py-4 text-right">
+                        {reg.status === "pending" ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleApprove(reg._id)}
+                              disabled={isActing}
+                              title="Approve"
+                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold transition-colors disabled:opacity-50 shadow-sm shadow-emerald-100"
+                            >
+                              {isActing
+                                ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                : <FiCheckCircle size={14} />
+                              }
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleReject(reg._id)}
+                              disabled={isActing}
+                              title="Reject"
+                              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 text-sm font-semibold transition-colors disabled:opacity-50"
+                            >
+                              {isActing
+                                ? <span className="w-3.5 h-3.5 border-2 border-red-200 border-t-red-500 rounded-full animate-spin" />
+                                : <FiX size={14} />
+                              }
+                              Reject
+                            </button>
+                          </div>
                         ) : (
-                          <FiCheckCircle size={13} />
+                          <span className="text-sm text-gray-300 pr-1">—</span>
                         )}
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => handleReject(reg._id)}
-                        disabled={isActing}
-                        className="px-3.5 py-1.5 rounded-lg border border-red-200 text-red-600 text-xs font-semibold hover:bg-red-50 transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                      >
-                        {isActing ? (
-                          <span className="w-3.5 h-3.5 border-2 border-red-300 border-t-red-600 rounded-full animate-spin" />
-                        ) : (
-                          <FiX size={13} />
-                        )}
-                        Reject
-                      </button>
-                    </div>
-                  )}
-                </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* ── Pagination ── */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100 bg-gray-50/60">
+              <p className="text-sm text-gray-400">
+                Showing <span className="font-semibold text-gray-600">{(page - 1) * REGS_PER_PAGE + 1}</span>–<span className="font-semibold text-gray-600">{Math.min(page * REGS_PER_PAGE, filtered.length)}</span> of <span className="font-semibold text-gray-600">{filtered.length}</span>
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  disabled={page === 1}
+                  onClick={() => setPage(page - 1)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  <FiChevronLeft size={15} />
+                </button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pn;
+                  if (totalPages <= 5) pn = i + 1;
+                  else if (page <= 3) pn = i + 1;
+                  else if (page >= totalPages - 2) pn = totalPages - 4 + i;
+                  else pn = page - 2 + i;
+                  return (
+                    <button
+                      key={pn}
+                      onClick={() => setPage(pn)}
+                      className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-semibold transition ${
+                        page === pn
+                          ? "bg-blue-600 text-white shadow-sm"
+                          : "border border-gray-200 text-gray-500 hover:bg-gray-50"
+                      }`}
+                    >
+                      {pn}
+                    </button>
+                  );
+                })}
+                <button
+                  disabled={page === totalPages}
+                  onClick={() => setPage(page + 1)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  <FiChevronRight size={15} />
+                </button>
               </div>
-            );
-          })}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -3558,14 +3769,29 @@ function AttendanceSection() {
               >
                 {/* Avatar + info */}
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div
-                    className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0 transition-colors ${
-                      row.attended
-                        ? "bg-emerald-100 text-emerald-700"
-                        : "bg-gray-100 text-gray-400"
-                    }`}
-                  >
-                    {row.student?.name?.charAt(0)?.toUpperCase() || "?"}
+                  {/* ✅ Profile image with initials fallback */}
+                  <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-gray-100">
+                    {getAvatarSrc(row.student) ? (
+                      <img
+                        src={getAvatarSrc(row.student)}
+                        alt={row.student?.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          e.target.style.display = "none";
+                          e.target.nextSibling.style.display = "flex";
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      className={`w-full h-full flex items-center justify-center font-bold text-sm transition-colors ${
+                        row.attended
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-gray-100 text-gray-400"
+                      }`}
+                      style={{ display: getAvatarSrc(row.student) ? "none" : "flex" }}
+                    >
+                      {row.student?.name?.charAt(0)?.toUpperCase() || "?"}
+                    </div>
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-800 truncate leading-snug">
@@ -3623,14 +3849,25 @@ function AttendanceSection() {
     </div>
   );
 }
-
 /* ================================================
    ADMIN LOGS (unchanged)
 ================================================ */
 /* ================================================
-   ADMIN LOGS (Enhanced with SystemLogs UI)
+   ADMIN LOGS — Fixed version
+   • Avatar image: uses same src logic as Navbar.jsx
+       (startsWith("http") ? url : BASE_URL + "/uploads/" + path)
+   • Details column: wraps fully, never truncates
+   • User data from useAuth() — no extra fetch
+   • Indigo color scheme throughout, no dark buttons
+   
+   Replace the entire AdminLogs() function in AdminDashboard.jsx.
+   Ensure these are imported at the top of AdminDashboard.jsx:
+     import { useAuth } from "../context/AuthContext";
+     import { getAdminLogs, BASE_URL } from "../services/api";
 ================================================ */
 function AdminLogs() {
+  const { user } = useAuth();
+
   const [logs, setLogs] = useState([]);
   const [filteredLogs, setFilteredLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -3641,43 +3878,43 @@ function AdminLogs() {
   const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [page, setPage] = useState(1);
   const [entities, setEntities] = useState([]);
-  const [stats, setStats] = useState({ 
-    total: 0, 
-    created: 0, 
-    updated: 0, 
-    deleted: 0,
-    approved: 0,
-    rejected: 0 
+  const [stats, setStats] = useState({
+    total: 0, created: 0, updated: 0, deleted: 0, approved: 0, rejected: 0,
   });
 
   const LOGS_PER_PAGE = 10;
 
+  /* ─────────────────────────────────────────
+     AVATAR HELPER — mirrors Navbar.jsx exactly:
+       if profileImage starts with "http" → use as-is (Google OAuth / CDN)
+       otherwise → prepend BASE_URL/uploads/
+     Returns null if no image so we fall back to initials.
+  ───────────────────────────────────────── */
+  const getAvatarSrc = (adminObj) => {
+    const img = adminObj?.profileImage;
+    if (!img) return null;
+    return img.startsWith("http") ? img : `${BASE_URL}/uploads/${img}`;
+  };
+
+  /* ── Fetch logs ── */
   useEffect(() => {
     const fetchLogs = async () => {
       try {
         setLoading(true);
-        const res = await getAdminLogs();
+        const res  = await getAdminLogs();
         const data = res.data || [];
         setLogs(data);
         setFilteredLogs(data);
-        
-        // Calculate stats
         setStats({
-          total: data.length,
-          created: data.filter(l => l.action?.includes("CREATED")).length,
-          updated: data.filter(l => l.action?.includes("UPDATED")).length,
-          deleted: data.filter(l => l.action?.includes("DELETED")).length,
-          approved: data.filter(l => l.action?.includes("APPROVED")).length,
-          rejected: data.filter(l => l.action?.includes("REJECTED")).length,
+          total:    data.length,
+          created:  data.filter((l) => l.action?.includes("CREATED")).length,
+          updated:  data.filter((l) => l.action?.includes("UPDATED")).length,
+          deleted:  data.filter((l) => l.action?.includes("DELETED")).length,
+          approved: data.filter((l) => l.action?.includes("APPROVED")).length,
+          rejected: data.filter((l) => l.action?.includes("REJECTED")).length,
         });
-        
-        // Extract unique entities for filter
         const entitySet = new Set();
-        data.forEach(log => {
-          if (log.targetEntityType) {
-            entitySet.add(log.targetEntityType);
-          }
-        });
+        data.forEach((log) => { if (log.targetEntityType) entitySet.add(log.targetEntityType); });
         setEntities(Array.from(entitySet).sort());
       } catch (err) {
         console.error("Failed to fetch logs:", err);
@@ -3686,515 +3923,533 @@ function AdminLogs() {
         setLoading(false);
       }
     };
-
     fetchLogs();
   }, []);
 
-  // Filter Logic
+  /* ── Filter logic ── */
   useEffect(() => {
-    if (!logs.length) return;
-    
+    if (!logs.length) { setFilteredLogs([]); return; }
     let temp = [...logs];
-
     if (search) {
-      const searchLower = search.toLowerCase();
-      temp = temp.filter((log) => {
-        const action = log.action || "";
-        const adminName = log.adminId?.name || "";
-        const entityType = log.targetEntityType || "";
-        const details = JSON.stringify(log.details || "").toLowerCase();
-        return action.toLowerCase().includes(searchLower) ||
-          adminName.toLowerCase().includes(searchLower) ||
-          entityType.toLowerCase().includes(searchLower) ||
-          details.includes(searchLower);
-      });
+      const s = search.toLowerCase();
+      temp = temp.filter((log) =>
+        (log.action || "").toLowerCase().includes(s) ||
+        (log.adminId?.name || "").toLowerCase().includes(s) ||
+        (log.targetEntityType || "").toLowerCase().includes(s) ||
+        JSON.stringify(log.details || "").toLowerCase().includes(s)
+      );
     }
-
-    if (actionFilter !== "ALL") {
-      temp = temp.filter((log) => log.action?.includes(actionFilter));
-    }
-
-    if (entityFilter !== "ALL") {
-      temp = temp.filter((log) => log.targetEntityType === entityFilter);
-    }
-
+    if (actionFilter !== "ALL") temp = temp.filter((l) => l.action?.includes(actionFilter));
+    if (entityFilter !== "ALL") temp = temp.filter((l) => l.targetEntityType === entityFilter);
     if (dateRange.start) {
-      const startDate = new Date(dateRange.start);
-      startDate.setHours(0, 0, 0, 0);
-      temp = temp.filter((log) => log.createdAt && new Date(log.createdAt) >= startDate);
+      const d = new Date(dateRange.start); d.setHours(0, 0, 0, 0);
+      temp = temp.filter((l) => l.createdAt && new Date(l.createdAt) >= d);
     }
     if (dateRange.end) {
-      const endDate = new Date(dateRange.end);
-      endDate.setHours(23, 59, 59, 999);
-      temp = temp.filter((log) => log.createdAt && new Date(log.createdAt) <= endDate);
+      const d = new Date(dateRange.end); d.setHours(23, 59, 59, 999);
+      temp = temp.filter((l) => l.createdAt && new Date(l.createdAt) <= d);
     }
-
     setFilteredLogs(temp);
     setPage(1);
   }, [search, actionFilter, entityFilter, dateRange.start, dateRange.end, logs]);
 
+  /* ── Badge helpers ── */
   const getActionStyle = (action) => {
-    if (!action) return "bg-gray-100 text-gray-600";
-    if (action.includes("CREATED")) return "bg-emerald-100 text-emerald-700";
-    if (action.includes("UPDATED")) return "bg-amber-100 text-amber-700";
-    if (action.includes("DELETED")) return "bg-red-100 text-red-700";
-    if (action.includes("APPROVED")) return "bg-green-100 text-green-700";
-    if (action.includes("REJECTED")) return "bg-pink-100 text-pink-700";
-    return "bg-gray-100 text-gray-600";
+    if (!action) return "bg-gray-100 text-gray-500 ring-gray-200";
+    if (action.includes("CREATED"))  return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+    if (action.includes("UPDATED"))  return "bg-amber-50 text-amber-700 ring-amber-200";
+    if (action.includes("DELETED"))  return "bg-red-50 text-red-600 ring-red-200";
+    if (action.includes("APPROVED")) return "bg-teal-50 text-teal-700 ring-teal-200";
+    if (action.includes("REJECTED")) return "bg-rose-50 text-rose-600 ring-rose-200";
+    return "bg-gray-100 text-gray-500 ring-gray-200";
   };
 
-  const getEntityIcon = (type) => {
-    switch(type) {
-      case "Event":
-        return <FiCalendar size={12} />;
-      case "User":
-        return <FiUser size={12} />;
-      case "Registration":
-        return <FiCheckCircle size={12} />;
-      case "Discussion":
-        return <FiMessageSquare size={12} />;
-      default:
-        return <FiFileText size={12} />;
-    }
+  const getActionDot = (action) => {
+    if (!action) return "bg-gray-300";
+    if (action.includes("CREATED"))  return "bg-emerald-500";
+    if (action.includes("UPDATED"))  return "bg-amber-400";
+    if (action.includes("DELETED"))  return "bg-red-400";
+    if (action.includes("APPROVED")) return "bg-teal-500";
+    if (action.includes("REJECTED")) return "bg-rose-400";
+    return "bg-gray-300";
   };
 
-  const getEntityBadgeStyle = (type) => {
-    const styles = {
-      Event: "bg-blue-100 text-blue-700",
-      User: "bg-purple-100 text-purple-700",
-      Registration: "bg-green-100 text-green-700",
-      Discussion: "bg-orange-100 text-orange-700",
-    };
-    return styles[type] || "bg-gray-100 text-gray-600";
+  const getEntityIcon = (type) => ({
+    Event:        <FiCalendar size={11} />,
+    User:         <FiUser size={11} />,
+    Registration: <FiCheckCircle size={11} />,
+    Discussion:   <FiMessageSquare size={11} />,
+  }[type] || <FiFileText size={11} />);
+
+  const getEntityBadgeStyle = (type) => ({
+    Event:        "bg-blue-50 text-blue-600 ring-blue-100",
+    User:         "bg-violet-50 text-violet-600 ring-violet-100",
+    Registration: "bg-teal-50 text-teal-600 ring-teal-100",
+    Discussion:   "bg-orange-50 text-orange-600 ring-orange-100",
+  }[type] || "bg-gray-50 text-gray-500 ring-gray-200");
+
+  /* ─────────────────────────────────────────
+     DETAILS HELPER — returns an array of
+     { label, value } pairs so we can render
+     each detail on its own line, fully visible.
+  ───────────────────────────────────────── */
+  const getDetailItems = (log) => {
+    const items = [];
+    const d = log.details || {};
+
+    if (d.title)       items.push({ label: "Title",   value: d.title });
+    if (d.name)        items.push({ label: "Name",    value: d.name });
+    if (d.email)       items.push({ label: "Email",   value: d.email });
+    if (d.eventId)     items.push({ label: "Event",   value: d.eventId });
+    if (d.location)    items.push({ label: "Location",value: d.location });
+    if (d.category)    items.push({ label: "Category",value: d.category });
+    if (d.description) items.push({ label: "Desc",    value: d.description });
+
+    // Catch-all: any other keys not handled above
+    const handled = new Set(["title","name","email","eventId","location","category","description"]);
+    Object.entries(d).forEach(([k, v]) => {
+      if (!handled.has(k) && v !== null && v !== undefined && v !== "") {
+        items.push({ label: k.charAt(0).toUpperCase() + k.slice(1), value: String(v) });
+      }
+    });
+
+    // Fallback to targetEntityId if nothing else
+    if (!items.length && log.targetEntityId)
+      items.push({ label: "ID", value: log.targetEntityId });
+
+    return items;
   };
 
-  const formatDate = (date) => {
+  const formatLogDate = (date) => {
     if (!date) return "—";
     try {
-      const d = new Date(date);
-      return d.toLocaleDateString("en-IN", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit"
+      return new Date(date).toLocaleDateString("en-IN", {
+        day: "numeric", month: "short", year: "numeric",
       });
-    } catch {
-      return "—";
-    }
+    } catch { return "—"; }
   };
 
   const formatRelativeTime = (date) => {
     if (!date) return "—";
     try {
-      const d = new Date(date);
-      const now = new Date();
-      const diffMs = now - d;
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMs / 3600000);
-      const diffDays = Math.floor(diffMs / 86400000);
-
-      if (diffMins < 1) return "Just now";
-      if (diffMins < 60) return `${diffMins} min ago`;
-      if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? "s" : ""} ago`;
-      if (diffDays < 7) return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
-      
-      return formatDate(date);
-    } catch {
-      return "—";
-    }
-  };
-
-  const getEntityDetails = (log) => {
-    const details = [];
-    
-    // Add title if present
-    if (log.details?.title) {
-      details.push(log.details.title);
-    }
-    // Add name if present
-    if (log.details?.name) {
-      details.push(log.details.name);
-    }
-    // Add email if present
-    if (log.details?.email) {
-      details.push(log.details.email);
-    }
-    // Add eventId reference if present
-    if (log.details?.eventId) {
-      details.push(`Event: ${log.details.eventId.substring(0, 8)}...`);
-    }
-    // Add target entity ID as fallback
-    if (details.length === 0 && log.targetEntityId) {
-      details.push(`ID: ${log.targetEntityId.substring(0, 8)}...`);
-    }
-    
-    return details.length > 0 ? details.join(" • ") : "—";
+      const ms    = Date.now() - new Date(date);
+      const mins  = Math.floor(ms / 60000);
+      const hours = Math.floor(ms / 3600000);
+      const days  = Math.floor(ms / 86400000);
+      if (mins  < 1)  return "Just now";
+      if (mins  < 60) return `${mins}m ago`;
+      if (hours < 24) return `${hours}h ago`;
+      if (days  < 7)  return `${days}d ago`;
+      return formatLogDate(date);
+    } catch { return "—"; }
   };
 
   const clearFilters = () => {
-    setSearch("");
-    setActionFilter("ALL");
-    setEntityFilter("ALL");
+    setSearch(""); setActionFilter("ALL"); setEntityFilter("ALL");
     setDateRange({ start: "", end: "" });
   };
 
-  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / LOGS_PER_PAGE));
-  const paginatedLogs = filteredLogs.slice(
-    (page - 1) * LOGS_PER_PAGE,
-    page * LOGS_PER_PAGE
-  );
+  const handleExportCSV = () => {
+    const rows = [
+      ["Action", "Entity Type", "Details", "Admin", "Admin Email", "Time"],
+      ...filteredLogs.map((log) => {
+        const detailStr = getDetailItems(log).map((i) => `${i.label}: ${i.value}`).join(" | ");
+        return [
+          log.action || "",
+          log.targetEntityType || "",
+          detailStr,
+          log.adminId?.name || "Admin",
+          log.adminId?.email || "",
+          formatLogDate(log.createdAt),
+        ];
+      }),
+    ];
+    const csv  = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url;
+    a.setAttribute("download", `admin_logs_${new Date().toISOString().split("T")[0]}.csv`);
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+    toast.success("Logs exported successfully");
+  };
 
+  const totalPages    = Math.max(1, Math.ceil(filteredLogs.length / LOGS_PER_PAGE));
+  const paginatedLogs = filteredLogs.slice((page - 1) * LOGS_PER_PAGE, page * LOGS_PER_PAGE);
+  const hasFilters    = search || actionFilter !== "ALL" || entityFilter !== "ALL" || dateRange.start || dateRange.end;
+
+  /* ── Stat cards ── */
   const statCards = [
-    { label: "Total Logs", value: stats.total, icon: <FiFileText size={14} />, color: "bg-purple-100 text-purple-600" },
-    { label: "Created", value: stats.created, icon: <FiPlus size={14} />, color: "bg-emerald-100 text-emerald-600" },
-    { label: "Updated", value: stats.updated, icon: <FiEdit2 size={14} />, color: "bg-amber-100 text-amber-600" },
-    { label: "Deleted", value: stats.deleted, icon: <FiTrash2 size={14} />, color: "bg-red-100 text-red-600" },
-    { label: "Approved", value: stats.approved, icon: <FiCheckCircle size={14} />, color: "bg-green-100 text-green-600" },
-    { label: "Rejected", value: stats.rejected, icon: <FiXCircle size={14} />, color: "bg-pink-100 text-pink-600" },
+    { label: "Total Logs",             value: stats.total,                        icon: <FiFileText size={15} />,   iconCls: "text-indigo-500", bg: "bg-indigo-50",  ring: "ring-indigo-100"  },
+    { label: "Modifications",          value: stats.created+stats.updated+stats.deleted, icon: <FiEdit2 size={15} />, iconCls: "text-amber-500",  bg: "bg-amber-50",   ring: "ring-amber-100"   },
+    { label: "Approvals / Rejections", value: stats.approved+stats.rejected,      icon: <FiCheckCircle size={15} />, iconCls: "text-teal-500", bg: "bg-teal-50",    ring: "ring-teal-100"    },
   ];
+
+  /* ── Action pill tabs ── */
+  const ACTION_TABS = [
+    { key: "ALL",      label: "All",      count: stats.total,    activeBg: "bg-indigo-600 text-white"  },
+    { key: "CREATED",  label: "Created",  count: stats.created,  activeBg: "bg-emerald-600 text-white" },
+    { key: "UPDATED",  label: "Updated",  count: stats.updated,  activeBg: "bg-amber-500 text-white"   },
+    { key: "DELETED",  label: "Deleted",  count: stats.deleted,  activeBg: "bg-red-500 text-white"     },
+    { key: "APPROVED", label: "Approved", count: stats.approved, activeBg: "bg-teal-600 text-white"    },
+    { key: "REJECTED", label: "Rejected", count: stats.rejected, activeBg: "bg-rose-500 text-white"    },
+  ];
+
+  /* ── Loading skeleton ── */
+  if (loading) {
+    return (
+      <div className="space-y-5">
+        <div className="flex items-center justify-between">
+          <div className="h-7 w-52 bg-gray-200 rounded-lg animate-pulse" />
+          <div className="h-9 w-28 bg-gray-200 rounded-lg animate-pulse" />
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          {[1,2,3].map((i) => <div key={i} className="h-20 bg-white rounded-2xl border border-gray-100 animate-pulse" />)}
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="h-12 bg-gray-50 border-b border-gray-100" />
+          {[1,2,3,4,5].map((i) => (
+            <div key={i} className="flex items-center gap-4 px-6 py-4 border-b border-gray-50 animate-pulse">
+              <div className="w-6 h-4 bg-gray-100 rounded" />
+              <div className="w-24 h-6 rounded-full bg-gray-100" />
+              <div className="w-16 h-5 rounded-full bg-gray-100" />
+              <div className="flex-1 h-4 bg-gray-100 rounded" />
+              <div className="w-32 h-9 rounded-full bg-gray-100 flex-shrink-0" />
+              <div className="w-20 h-4 bg-gray-100 rounded" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+
+      {/* ── Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-            <FiFileText size={22} className="text-purple-600" />
-            Admin Activity Logs
-          </h2>
-          <p className="text-sm text-gray-500 mt-1">
-            Complete audit trail of all admin actions in your events
+          <h2 className="text-xl font-bold text-gray-900 tracking-tight">Admin Activity Logs</h2>
+          <p className="text-sm text-gray-400 mt-0.5">
+            {filteredLogs.length} {filteredLogs.length === 1 ? "entry" : "entries"}
+            {user?.name ? ` · Viewing as ${user.name}` : ""}
           </p>
         </div>
-        <div className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-          Total: {stats.total} logs
-        </div>
+        {filteredLogs.length > 0 && (
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-sm font-semibold rounded-xl transition-all shadow-md shadow-indigo-100 whitespace-nowrap"
+          >
+            <FiDownload size={14} /> Export CSV
+          </button>
+        )}
       </div>
 
-      {/* Stats Cards Row */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        {statCards.map((stat, i) => (
-          <div
-            key={i}
-            className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 hover:shadow-md transition-all"
-          >
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-medium text-gray-500">
-                {stat.label}
-              </span>
-              <div className={`w-6 h-6 rounded-lg ${stat.color.split(" ")[0]} flex items-center justify-center ${stat.color.split(" ")[1]}`}>
-                {stat.icon}
-              </div>
+      {/* ── Stat Cards ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {statCards.map((s, i) => (
+          <div key={i} className="bg-white border border-gray-100 rounded-2xl shadow-sm px-5 py-4 flex items-center gap-4">
+            <div className={`w-10 h-10 rounded-xl ${s.bg} ring-1 ${s.ring} flex items-center justify-center flex-shrink-0 ${s.iconCls}`}>
+              {s.icon}
             </div>
-            <p className="text-xl font-bold text-gray-800">{stat.value}</p>
+            <div>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide leading-none mb-1.5">{s.label}</p>
+              <p className="text-2xl font-bold text-gray-800 leading-none">{s.value}</p>
+            </div>
           </div>
         ))}
       </div>
 
-      {/* Filters Bar */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <div className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {/* Search Input */}
-            <div className="relative">
-              <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
-              <input
-                type="text"
-                placeholder="Search logs..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-gray-50"
-              />
-            </div>
-
-            {/* Action Filter */}
-            <select
-              value={actionFilter}
-              onChange={(e) => setActionFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-gray-50"
-            >
-              <option value="ALL">All Actions</option>
-              <option value="CREATED">Created</option>
-              <option value="UPDATED">Updated</option>
-              <option value="DELETED">Deleted</option>
-              <option value="APPROVED">Approved</option>
-              <option value="REJECTED">Rejected</option>
-            </select>
-
-            {/* Entity Filter */}
-            <select
-              value={entityFilter}
-              onChange={(e) => setEntityFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-gray-50"
-              disabled={entities.length === 0}
-            >
-              <option value="ALL">All Entities</option>
-              {entities.map((entity) => (
-                <option key={entity} value={entity}>
-                  {entity}
-                </option>
-              ))}
-            </select>
-
-            {/* Date Range */}
-            <div className="flex gap-2">
-              <input
-                type="date"
-                value={dateRange.start}
-                onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-gray-50"
-                placeholder="From"
-              />
-              <input
-                type="date"
-                value={dateRange.end}
-                onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 bg-gray-50"
-                placeholder="To"
-              />
-            </div>
-          </div>
-
-          {/* Active Filters */}
-          {(search || actionFilter !== "ALL" || entityFilter !== "ALL" || dateRange.start || dateRange.end) && (
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-              <div className="flex flex-wrap gap-2">
-                {search && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-700 rounded-lg text-xs">
-                    <FiSearch size={10} />
-                    Search: "{search}"
-                    <button onClick={() => setSearch("")} className="hover:text-purple-900 ml-1">×</button>
-                  </span>
-                )}
-                {actionFilter !== "ALL" && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 text-amber-700 rounded-lg text-xs">
-                    <FiActivity size={10} />
-                    Action: {actionFilter}
-                    <button onClick={() => setActionFilter("ALL")} className="hover:text-amber-900 ml-1">×</button>
-                  </span>
-                )}
-                {entityFilter !== "ALL" && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs">
-                    <FiTag size={10} />
-                    Entity: {entityFilter}
-                    <button onClick={() => setEntityFilter("ALL")} className="hover:text-blue-900 ml-1">×</button>
-                  </span>
-                )}
-                {dateRange.start && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded-lg text-xs">
-                    <FiCalendar size={10} />
-                    From: {dateRange.start}
-                    <button onClick={() => setDateRange({ ...dateRange, start: "" })} className="hover:text-green-900 ml-1">×</button>
-                  </span>
-                )}
-                {dateRange.end && (
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 rounded-lg text-xs">
-                    <FiCalendar size={10} />
-                    To: {dateRange.end}
-                    <button onClick={() => setDateRange({ ...dateRange, end: "" })} className="hover:text-green-900 ml-1">×</button>
-                  </span>
-                )}
-              </div>
-              <button
-                onClick={clearFilters}
-                className="text-xs text-red-500 hover:text-red-600 font-medium"
-              >
-                Clear All
+      {/* ── Filter Bar ── */}
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-col gap-3">
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          {/* Search */}
+          <div className="relative flex-1">
+            <FiSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search action, admin, entity…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-8 py-2.5 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 bg-gray-50 placeholder-gray-400 transition-all"
+            />
+            {search && (
+              <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                <FiX size={13} />
               </button>
-            </div>
-          )}
+            )}
+          </div>
+          {/* Entity */}
+          <select
+            value={entityFilter}
+            onChange={(e) => setEntityFilter(e.target.value)}
+            disabled={entities.length === 0}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 bg-gray-50 text-gray-700 min-w-[130px] disabled:opacity-40 transition-all"
+          >
+            <option value="ALL">All Entities</option>
+            {entities.map((e) => <option key={e} value={e}>{e}</option>)}
+          </select>
+          {/* Date range */}
+          <div className="flex gap-2">
+            <input type="date" value={dateRange.start}
+              onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+              className="flex-1 px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all"
+            />
+            <input type="date" value={dateRange.end}
+              onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+              className="flex-1 px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all"
+            />
+          </div>
+        </div>
+        {/* Action tabs */}
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 flex-wrap">
+          {ACTION_TABS.map(({ key, label, count, activeBg }) => (
+            <button
+              key={key}
+              onClick={() => setActionFilter(key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap ${
+                actionFilter === key ? `${activeBg} shadow-sm` : "text-gray-500 hover:text-gray-800"
+              }`}
+            >
+              <span>{label}</span>
+              <span className={`px-1.5 py-0.5 rounded-full font-bold text-[10px] leading-none ${
+                actionFilter === key ? "bg-white/25 text-white" : "bg-white text-gray-500"
+              }`}>{count}</span>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Logs Table */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="p-12 text-center">
-            <div className="inline-block w-8 h-8 border-2 border-gray-200 border-t-purple-600 rounded-full animate-spin" />
-            <p className="text-gray-500 text-sm mt-3">Loading logs...</p>
+      {/* Active filter chips */}
+      {hasFilters && (
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
+            {search && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-full text-xs font-medium">
+                <FiSearch size={10} /> "{search}"
+                <button onClick={() => setSearch("")} className="ml-0.5 hover:text-indigo-900">×</button>
+              </span>
+            )}
+            {entityFilter !== "ALL" && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-medium">
+                <FiTag size={10} /> {entityFilter}
+                <button onClick={() => setEntityFilter("ALL")} className="ml-0.5 hover:text-blue-900">×</button>
+              </span>
+            )}
+            {dateRange.start && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
+                <FiCalendar size={10} /> From: {dateRange.start}
+                <button onClick={() => setDateRange({ ...dateRange, start: "" })} className="ml-0.5 hover:text-gray-900">×</button>
+              </span>
+            )}
+            {dateRange.end && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
+                <FiCalendar size={10} /> To: {dateRange.end}
+                <button onClick={() => setDateRange({ ...dateRange, end: "" })} className="ml-0.5 hover:text-gray-900">×</button>
+              </span>
+            )}
           </div>
-        ) : error ? (
-          <div className="p-12 text-center">
-            <FiAlertTriangle size={32} className="text-red-300 mx-auto mb-3" />
-            <p className="text-gray-500 text-sm">{error}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="mt-3 text-purple-600 text-sm hover:underline"
-            >
-              Try Again
+          <button onClick={clearFilters} className="text-xs font-semibold text-red-500 hover:text-red-600 transition">Clear All</button>
+        </div>
+      )}
+
+      {/* ── Error ── */}
+      {error ? (
+        <div className="bg-white border border-red-100 rounded-2xl p-16 text-center shadow-sm">
+          <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+            <FiAlertTriangle size={26} className="text-red-400" />
+          </div>
+          <p className="text-gray-700 font-semibold">{error}</p>
+          <button onClick={() => window.location.reload()}
+            className="mt-4 px-4 py-2 rounded-xl border border-indigo-200 text-indigo-600 text-sm font-semibold hover:bg-indigo-50 transition-all">
+            Try Again
+          </button>
+        </div>
+
+      /* ── Empty ── */
+      ) : filteredLogs.length === 0 ? (
+        <div className="bg-white border border-gray-100 rounded-2xl p-16 text-center shadow-sm">
+          <div className="w-14 h-14 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-4">
+            <FiFileText size={26} className="text-gray-300" />
+          </div>
+          <p className="text-gray-700 font-semibold text-base">No logs found</p>
+          <p className="text-sm text-gray-400 mt-1">
+            {hasFilters ? "Try adjusting your filters or search term." : "No admin activity has been logged yet."}
+          </p>
+          {hasFilters && (
+            <button onClick={clearFilters}
+              className="mt-5 px-5 py-2.5 rounded-xl border border-indigo-200 text-indigo-600 text-sm font-semibold hover:bg-indigo-50 transition-all">
+              Clear Filters
             </button>
-          </div>
-        ) : filteredLogs.length === 0 ? (
-          <div className="p-12 text-center">
-            <FiFileText size={28} className="text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500 font-medium">No logs found</p>
-            <p className="text-xs text-gray-400 mt-1">
-              {(search || actionFilter !== "ALL" || entityFilter !== "ALL" || dateRange.start || dateRange.end)
-                ? "Try adjusting your filters"
-                : "No activity has been logged yet"}
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Desktop Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Entity</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Details</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Admin</th>
-                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Time</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {paginatedLogs.map((log) => (
-                    <tr key={log._id} className="hover:bg-gray-50/60 transition-colors">
-                      <td className="px-5 py-3">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${getActionStyle(log.action)}`}>
-                          {log.action?.includes("CREATED") && <FiPlus size={10} />}
-                          {log.action?.includes("UPDATED") && <FiEdit2 size={10} />}
-                          {log.action?.includes("DELETED") && <FiTrash2 size={10} />}
-                          {log.action?.includes("APPROVED") && <FiCheckCircle size={10} />}
-                          {log.action?.includes("REJECTED") && <FiXCircle size={10} />}
+          )}
+        </div>
+
+      /* ── Table ── */
+      ) : (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-base">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider w-8">#</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Action</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider hidden md:table-cell">Entity</th>
+                  {/* Details — no max-w cap, no truncate, text wraps fully */}
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider hidden lg:table-cell">Details</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider">Admin</th>
+                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-gray-400 uppercase tracking-wider hidden lg:table-cell">Time</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {paginatedLogs.map((log, idx) => {
+                  const rowNum        = (page - 1) * LOGS_PER_PAGE + idx + 1;
+                  const isCurrentAdmin = user?._id && log.adminId?._id === user._id;
+                  const adminAvatarSrc = getAvatarSrc(log.adminId);   // ✅ image from profileImage field
+                  const adminInitial   = log.adminId?.name ? log.adminId.name.charAt(0).toUpperCase() : "A";
+                  const detailItems    = getDetailItems(log);
+
+                  return (
+                    <tr
+                      key={log._id}
+                      className={`transition-colors group align-top ${
+                        isCurrentAdmin ? "bg-indigo-50/40 hover:bg-indigo-50/70" : "hover:bg-gray-50/60"
+                      }`}
+                    >
+                      {/* # */}
+                      <td className="px-5 py-4 text-sm text-gray-300 font-mono">{rowNum}</td>
+
+                      {/* Action */}
+                      <td className="px-5 py-4">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold ring-1 ${getActionStyle(log.action)}`}>
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${getActionDot(log.action)}`} />
                           {log.action ? log.action.replace(/_/g, " ") : "Unknown"}
                         </span>
                       </td>
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-1.5">
+
+                      {/* Entity */}
+                      <td className="px-5 py-4 hidden md:table-cell">
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ring-1 ${getEntityBadgeStyle(log.targetEntityType)}`}>
                           {getEntityIcon(log.targetEntityType)}
-                          <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${getEntityBadgeStyle(log.targetEntityType)}`}>
-                            {log.targetEntityType || "—"}
-                          </span>
+                          {log.targetEntityType || "—"}
+                        </span>
+                      </td>
+
+                      {/* ── Details ──────────────────────────────────────
+                          Each detail on its own line as "Label: value".
+                          No truncation — long IDs and titles display fully.
+                          break-all on value ensures very long strings (like
+                          Mongo ObjectIds) wrap instead of overflowing.
+                      ─────────────────────────────────────────────────── */}
+                      <td className="px-5 py-4 hidden lg:table-cell min-w-[220px] max-w-[320px]">
+                        {detailItems.length > 0 ? (
+                          <div className="space-y-1">
+                            {detailItems.map((item, i) => (
+                              <div key={i} className="flex gap-1.5 items-start">
+                                <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap mt-0.5 flex-shrink-0">
+                                  {item.label}:
+                                </span>
+                                <span className="text-sm text-gray-600 break-all leading-snug">
+                                  {item.value}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-gray-300 text-sm">—</span>
+                        )}
+                      </td>
+
+                      {/* ── Admin ──────────────────────────────────────
+                          Avatar uses getAvatarSrc() — same logic as Navbar.
+                          Falls back to gradient + initial if no image.
+                      ─────────────────────────────────────────────────── */}
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 ring-1 ring-indigo-100">
+                            {adminAvatarSrc ? (
+                              <img
+                                src={adminAvatarSrc}
+                                alt={log.adminId?.name || "Admin"}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  // If image fails to load, hide it and show fallback
+                                  e.target.style.display = "none";
+                                  e.target.nextSibling.style.display = "flex";
+                                }}
+                              />
+                            ) : null}
+                            {/* Fallback initials div — shown when no image or image fails */}
+                            <div
+                              className="w-full h-full bg-gradient-to-br from-indigo-100 to-violet-100 flex items-center justify-center text-indigo-600 font-bold text-sm"
+                              style={{ display: adminAvatarSrc ? "none" : "flex" }}
+                            >
+                              {adminInitial}
+                            </div>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-800 text-sm truncate leading-tight">
+                              {log.adminId?.name || "Admin"}
+                              {isCurrentAdmin && (
+                                <span className="ml-1.5 text-[10px] font-semibold text-indigo-500 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded-full align-middle">You</span>
+                              )}
+                            </p>
+                            <p className="text-sm text-gray-400 truncate mt-0.5">{log.adminId?.email || "—"}</p>
+                          </div>
                         </div>
                       </td>
-                      <td className="px-5 py-3">
-                        <p className="text-sm text-gray-600 max-w-md truncate" title={getEntityDetails(log)}>
-                          {getEntityDetails(log)}
-                        </p>
-                      </td>
-                      <td className="px-5 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 font-semibold text-xs">
-                            {log.adminId?.name ? log.adminId.name.charAt(0).toUpperCase() : "A"}
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-gray-800">{log.adminId?.name || "Admin"}</p>
-                            <p className="text-xs text-gray-400">{log.adminId?.email}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-5 py-3">
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-1">
-                            <FiClock size={12} className="text-gray-400" />
-                            <span className="text-xs text-gray-500">{formatRelativeTime(log.createdAt)}</span>
-                          </div>
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            {formatDate(log.createdAt)}
-                          </p>
-                        </div>
+
+                      {/* Time */}
+                      <td className="px-5 py-4 hidden lg:table-cell">
+                        <p className="text-sm font-medium text-gray-600 whitespace-nowrap">{formatRelativeTime(log.createdAt)}</p>
+                        <p className="text-xs text-gray-400 mt-0.5 whitespace-nowrap">{formatLogDate(log.createdAt)}</p>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50/50">
-                <p className="text-xs text-gray-500">
-                  Showing {(page - 1) * LOGS_PER_PAGE + 1} to {Math.min(page * LOGS_PER_PAGE, filteredLogs.length)} of {filteredLogs.length} logs
-                </p>
-                <div className="flex gap-1">
-                  <button
-                    disabled={page === 1}
-                    onClick={() => setPage(page - 1)}
-                    className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                  >
-                    Previous
-                  </button>
-                  <div className="flex gap-1">
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      let pageNum;
-                      if (totalPages <= 5) {
-                        pageNum = i + 1;
-                      } else if (page <= 3) {
-                        pageNum = i + 1;
-                      } else if (page >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i;
-                      } else {
-                        pageNum = page - 2 + i;
-                      }
-                      return (
-                        <button
-                          key={pageNum}
-                          onClick={() => setPage(pageNum)}
-                          className={`w-8 h-8 rounded-lg text-sm font-medium transition ${
-                            page === pageNum
-                              ? "bg-purple-600 text-white"
-                              : "border border-gray-200 text-gray-600 hover:bg-gray-100"
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <button
-                    disabled={page === totalPages}
-                    onClick={() => setPage(page + 1)}
-                    className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                  >
-                    Next
-                  </button>
-                </div>
+          {/* ── Pagination ── */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100 bg-gray-50/60">
+              <p className="text-sm text-gray-400">
+                Showing{" "}
+                <span className="font-semibold text-gray-600">{(page - 1) * LOGS_PER_PAGE + 1}</span>–<span className="font-semibold text-gray-600">{Math.min(page * LOGS_PER_PAGE, filteredLogs.length)}</span>
+                {" "}of{" "}
+                <span className="font-semibold text-gray-600">{filteredLogs.length}</span>
+              </p>
+              <div className="flex items-center gap-1">
+                <button disabled={page === 1} onClick={() => setPage(page - 1)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
+                  <FiChevronLeft size={15} />
+                </button>
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pn;
+                  if (totalPages <= 5) pn = i + 1;
+                  else if (page <= 3) pn = i + 1;
+                  else if (page >= totalPages - 2) pn = totalPages - 4 + i;
+                  else pn = page - 2 + i;
+                  return (
+                    <button key={pn} onClick={() => setPage(pn)}
+                      className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-semibold transition ${
+                        page === pn ? "bg-indigo-600 text-white shadow-sm shadow-indigo-200" : "border border-gray-200 text-gray-500 hover:bg-gray-50"
+                      }`}>
+                      {pn}
+                    </button>
+                  );
+                })}
+                <button disabled={page === totalPages} onClick={() => setPage(page + 1)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition">
+                  <FiChevronRight size={15} />
+                </button>
               </div>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Export Button */}
-      {filteredLogs.length > 0 && (
-        <div className="flex justify-end">
-          <button
-            onClick={() => {
-              const csvRows = [
-                ["Action", "Entity Type", "Entity Details", "Admin", "Admin Email", "Time"],
-                ...filteredLogs.map(log => [
-                  log.action || "",
-                  log.targetEntityType || "",
-                  getEntityDetails(log),
-                  log.adminId?.name || "Admin",
-                  log.adminId?.email || "",
-                  formatDate(log.createdAt)
-                ])
-              ];
-              const csvContent = csvRows.map(row => 
-                row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")
-              ).join("\n");
-              const blob = new Blob([csvContent], { type: "text/csv" });
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement("a");
-              link.href = url;
-              link.setAttribute("download", `admin_logs_${new Date().toISOString().split("T")[0]}.csv`);
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-              URL.revokeObjectURL(url);
-              toast.success("Logs exported successfully");
-            }}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition"
-          >
-            <FiDownload size={14} />
-            Export as CSV
-          </button>
+            </div>
+          )}
         </div>
       )}
+
     </div>
   );
 }

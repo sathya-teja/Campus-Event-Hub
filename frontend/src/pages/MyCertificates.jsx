@@ -120,42 +120,42 @@ function CertificateRow({ reg, index }) {
         {/* content */}
         <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
-          <h3 className={`text-sm font-semibold truncate leading-tight transition-colors ${
+          <h3 className={`text-base font-semibold truncate leading-tight transition-colors ${
             canDownload
               ? "text-gray-800 group-hover:text-emerald-700"
               : "text-gray-500"
           }`}>
             {event.title}
           </h3>
-          <span className={`flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${catBadge}`}>
+          <span className={`flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full border ${catBadge}`}>
             {event.category}
           </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
-          <span className="flex items-center gap-1 text-xs text-gray-400">
-            <FiCalendar size={10} className="flex-shrink-0" />
+          <span className="flex items-center gap-1 text-sm text-gray-400">
+            <FiCalendar size={11} className="flex-shrink-0" />
             {fmtDate(event.startDate)}
           </span>
           {event.location && (
-            <span className="flex items-center gap-1 text-xs text-gray-400">
-              <FiMapPin size={10} className="flex-shrink-0" />
+            <span className="flex items-center gap-1 text-sm text-gray-400">
+              <FiMapPin size={11} className="flex-shrink-0" />
               <span className="truncate max-w-[130px]">{event.location}</span>
             </span>
           )}
           {canDownload && reg.attendedAt && (
-            <span className="flex items-center gap-1 text-xs text-emerald-600 font-medium">
-              <FiCheckCircle size={10} className="flex-shrink-0" />
+            <span className="flex items-center gap-1 text-sm text-emerald-600 font-medium">
+              <FiCheckCircle size={11} className="flex-shrink-0" />
               Attended {fmtDateShort(reg.attendedAt)}
             </span>
           )}
           {!canDownload && (
-            <span className={`flex items-center gap-1 text-xs font-medium ${
+            <span className={`flex items-center gap-1 text-sm font-medium ${
               reg.status !== "approved" ? "text-amber-500" : "text-gray-400"
             }`}>
               {reg.status !== "approved"
-                ? <><FiClock size={10} /> Pending approval</>
-                : <><FiLock size={10} /> Attend to unlock</>
+                ? <><FiClock size={11} /> Pending approval</>
+                : <><FiLock size={11} /> Attend to unlock</>
               }
             </span>
           )}
@@ -171,7 +171,7 @@ function CertificateRow({ reg, index }) {
               onClick={handleDownload}
               disabled={busy}
               title="Download certificate"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold border border-emerald-100 transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold border border-emerald-100 transition-colors disabled:opacity-50"
             >
               {busy
                 ? <span className="w-3 h-3 border border-emerald-300 border-t-emerald-600 rounded-full animate-spin" />
@@ -302,8 +302,8 @@ export default function MyCertificates() {
           style={{ boxShadow: "0 4px 20px rgba(0,0,0,0.05)" }}>
           <FiAward size={26} className="text-gray-300" />
         </div>
-        <p className="text-gray-700 font-semibold mb-1">No certificates yet</p>
-        <p className="text-sm text-gray-400 mb-6 max-w-[240px] leading-relaxed">
+        <p className="text-gray-700 font-semibold text-lg mb-1">No certificates yet</p>
+        <p className="text-base text-gray-400 mb-6 max-w-[240px] leading-relaxed">
           Register for events, get approved, and attend them to earn certificates.
         </p>
         <button
@@ -323,8 +323,8 @@ export default function MyCertificates() {
       {/* ── Header ─────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">My Certificates</h2>
-          <p className="text-sm text-gray-500 mt-1">
+          <h2 className="text-2xl font-bold text-gray-900">My Certificates</h2>
+          <p className="text-base text-gray-500 mt-1">
             {available.length} available · {locked.length} locked
           </p>
         </div>
@@ -354,7 +354,7 @@ export default function MyCertificates() {
       </div>
 
       {/* ── Stat strip ─────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
         {[
           { label: "Certificates", value: available.length, icon: <FiAward size={15} />,        color: "text-emerald-600", bg: "bg-emerald-50",  border: "border-emerald-100" },
           { label: "Attended",     value: registrations.filter(r => r.attended).length, icon: <FiCheckCircle size={15} />, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100" },
@@ -367,8 +367,8 @@ export default function MyCertificates() {
           >
             <span className={`flex-shrink-0 ${s.color}`}>{s.icon}</span>
             <div className="min-w-0">
-              <p className={`text-base sm:text-lg font-bold leading-none ${s.color}`}>{s.value}</p>
-              <p className="text-[10px] sm:text-[11px] text-gray-400 mt-0.5 font-medium truncate">{s.label}</p>
+              <p className={`text-lg sm:text-xl font-bold leading-none ${s.color}`}>{s.value}</p>
+              <p className="text-xs sm:text-sm text-gray-400 mt-0.5 font-medium truncate">{s.label}</p>
             </div>
           </div>
         ))}
@@ -397,14 +397,14 @@ export default function MyCertificates() {
             <button
               key={key}
               onClick={() => setFilterType(key)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
                 filterType === key
                   ? "bg-white shadow-sm text-gray-700"
                   : "text-gray-400 hover:text-gray-600"
               }`}
             >
               {label}
-              <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+              <span className={`px-1.5 py-0.5 rounded-full text-xs font-bold ${
                 filterType === key ? "bg-gray-100 text-gray-600" : "bg-gray-100 text-gray-400"
               }`}>
                 {count}
@@ -416,7 +416,7 @@ export default function MyCertificates() {
 
       {/* ── Section label ──────────────────────────────── */}
       {displayed.length > 0 && (
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-1">
+        <p className="text-sm font-semibold text-gray-400 uppercase tracking-wide px-1">
           {displayed.length} result{displayed.length !== 1 ? "s" : ""}
         </p>
       )}
@@ -425,10 +425,10 @@ export default function MyCertificates() {
       {displayed.length === 0 && !loading && (
         <div className="flex flex-col items-center justify-center py-14 text-center">
           <FiAlertCircle size={28} className="text-gray-300 mb-3" />
-          <p className="text-sm text-gray-500 font-medium">No results match your filters</p>
+          <p className="text-base text-gray-500 font-medium">No results match your filters</p>
           <button
             onClick={() => { setSearch(""); setFilterType("all"); }}
-            className="mt-3 text-xs text-blue-600 hover:underline font-medium"
+            className="mt-3 text-sm text-blue-600 hover:underline font-medium"
           >
             Clear filters
           </button>
@@ -454,7 +454,7 @@ export default function MyCertificates() {
           style={{ boxShadow: "0 2px 8px rgba(0,0,0,0.04)" }}
         >
           <FiAward size={15} className="text-amber-500 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-gray-500 leading-relaxed">
+          <p className="text-sm text-gray-500 leading-relaxed">
             <span className="font-semibold text-gray-600">How to earn certificates — </span>
             Attend an approved event and show your QR code or 6-digit code to the organiser at the venue. Your certificate unlocks instantly after check-in.
           </p>
