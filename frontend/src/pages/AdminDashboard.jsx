@@ -2633,16 +2633,23 @@ function Registrations() {
     try {
       setLoading(true);
       const { data } = await getAllRegistrations();
+      // Log the admin id and name
+      
+
+      console.log("Fetched registrations data:", data); // Debug log to inspect the raw data structure
       setEvents(data.events);
-      const eventMap = Object.fromEntries(data.events.map((e) => [e._id, e.title]));
+      // FIX 1: backend already populates eventId, so just use r.eventId?.title directly.
+      // The old eventMap[r.eventId] fallback was broken because r.eventId is a populated
+      // object, not a plain string ID, so the map lookup always missed.
       setRegistrations(
         data.registrations.map((r) => ({
           ...r,
-          eventTitle: r.eventId?.title || eventMap[r.eventId] || "Unknown",
+          eventTitle: r.eventId?.title || "Unknown",
         }))
       );
-    } catch {
-      /* silent */
+    } catch (err) {
+      // FIX 2: replaced silent catch — now surfaces the real error so you can diagnose it.
+      toast.error(err.response?.data?.message || "Failed to load registrations");
     } finally {
       setLoading(false);
     }
@@ -2687,20 +2694,22 @@ function Registrations() {
       let response, filename;
       if (selectedEvent === "all") {
         switch (exportFormat) {
-          case "csv":    response = await exportAllRegistrationsCSV();   filename = `all_registrations_${Date.now()}.csv`;  break;
-          case "excel":  response = await exportAllRegistrationsExcel(); filename = `all_registrations_${Date.now()}.xlsx`; break;
-          case "pdf":    response = await exportAllRegistrationsPDF();   filename = `all_registrations_${Date.now()}.pdf`;  break;
-          case "json":   response = await exportAllRegistrationsJSON();  filename = `all_registrations_${Date.now()}.json`; break;
+          case "csv":   response = await exportAllRegistrationsCSV();   filename = `all_registrations_${Date.now()}.csv`;  break;
+          case "excel": response = await exportAllRegistrationsExcel(); filename = `all_registrations_${Date.now()}.xlsx`; break;
+          case "pdf":   response = await exportAllRegistrationsPDF();   filename = `all_registrations_${Date.now()}.pdf`;  break;
+          case "json":  response = await exportAllRegistrationsJSON();  filename = `all_registrations_${Date.now()}.json`; break;
           default: return;
         }
       } else {
-        const selectedEventObj = events.find((ev) => ev.title === selectedEvent);
+        // FIX 3: selectedEvent is now an _id, so find by _id directly instead of by title.
+        const selectedEventObj = events.find((ev) => ev._id === selectedEvent);
         if (!selectedEventObj) { toast.error("Please select an event first"); return; }
+        const evTitle = selectedEventObj.title;
         switch (exportFormat) {
-          case "csv":    response = await exportRegistrationsCSV(selectedEventObj._id);   filename = `registrations_${selectedEvent}_${Date.now()}.csv`;  break;
-          case "excel":  response = await exportRegistrationsExcel(selectedEventObj._id); filename = `registrations_${selectedEvent}_${Date.now()}.xlsx`; break;
-          case "pdf":    response = await exportRegistrationsPDF(selectedEventObj._id);   filename = `registrations_${selectedEvent}_${Date.now()}.pdf`;  break;
-          case "json":   response = await exportRegistrationsJSON(selectedEventObj._id);  filename = `registrations_${selectedEvent}_${Date.now()}.json`; break;
+          case "csv":   response = await exportRegistrationsCSV(selectedEventObj._id);   filename = `registrations_${evTitle}_${Date.now()}.csv`;  break;
+          case "excel": response = await exportRegistrationsExcel(selectedEventObj._id); filename = `registrations_${evTitle}_${Date.now()}.xlsx`; break;
+          case "pdf":   response = await exportRegistrationsPDF(selectedEventObj._id);   filename = `registrations_${evTitle}_${Date.now()}.pdf`;  break;
+          case "json":  response = await exportRegistrationsJSON(selectedEventObj._id);  filename = `registrations_${evTitle}_${Date.now()}.json`; break;
           default: return;
         }
       }
@@ -2721,14 +2730,16 @@ function Registrations() {
   };
 
   const counts = {
-    all: registrations.length,
+    all:      registrations.length,
     pending:  registrations.filter((r) => r.status === "pending").length,
     approved: registrations.filter((r) => r.status === "approved").length,
     rejected: registrations.filter((r) => r.status === "rejected").length,
   };
 
   const filtered = registrations.filter((r) => {
-    const matchEvent  = selectedEvent === "all" || r.eventTitle === selectedEvent;
+    // FIX 3 (cont): filter now compares r.eventId?._id against selectedEvent (_id string)
+    // instead of comparing eventTitle strings, which was fragile and could mis-match.
+    const matchEvent  = selectedEvent === "all" || r.eventId?._id === selectedEvent;
     const matchStatus = statusTab === "all" || r.status === statusTab;
     const matchSearch =
       !search ||
@@ -2741,21 +2752,21 @@ function Registrations() {
   // Reset page when filters change
   useEffect(() => { setPage(1); }, [search, selectedEvent, statusTab]);
 
-  const totalPages  = Math.max(1, Math.ceil(filtered.length / REGS_PER_PAGE));
-  const paginated   = filtered.slice((page - 1) * REGS_PER_PAGE, page * REGS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / REGS_PER_PAGE));
+  const paginated  = filtered.slice((page - 1) * REGS_PER_PAGE, page * REGS_PER_PAGE);
 
   /* ── status badge config ── */
   const STATUS = {
-    pending:  { label: "Pending",  dot: "bg-amber-400",  badge: "bg-amber-50 text-amber-700 ring-amber-200"  },
+    pending:  { label: "Pending",  dot: "bg-amber-400",   badge: "bg-amber-50 text-amber-700 ring-amber-200"       },
     approved: { label: "Approved", dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
-    rejected: { label: "Rejected", dot: "bg-red-400",    badge: "bg-red-50 text-red-600 ring-red-200"        },
+    rejected: { label: "Rejected", dot: "bg-red-400",     badge: "bg-red-50 text-red-600 ring-red-200"             },
   };
 
   const TAB_META = [
-    { key: "all",      label: "All",      color: "text-gray-600",    activeBg: "bg-blue-600 text-white"   },
-    { key: "pending",  label: "Pending",  color: "text-amber-600",   activeBg: "bg-amber-500 text-white"  },
+    { key: "all",      label: "All",      color: "text-gray-600",    activeBg: "bg-blue-600 text-white"    },
+    { key: "pending",  label: "Pending",  color: "text-amber-600",   activeBg: "bg-amber-500 text-white"   },
     { key: "approved", label: "Approved", color: "text-emerald-600", activeBg: "bg-emerald-600 text-white" },
-    { key: "rejected", label: "Rejected", color: "text-red-500",     activeBg: "bg-red-500 text-white"    },
+    { key: "rejected", label: "Rejected", color: "text-red-500",     activeBg: "bg-red-500 text-white"     },
   ];
 
   /* ── Loading skeleton ── */
@@ -2803,8 +2814,9 @@ function Registrations() {
               className="text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-white text-gray-700 min-w-[140px]"
             >
               <option value="all">All Events</option>
+              {/* FIX 3: use ev._id as option value instead of ev.title */}
               {events.map((ev) => (
-                <option key={ev._id} value={ev.title}>{ev.title}</option>
+                <option key={ev._id} value={ev._id}>{ev.title}</option>
               ))}
             </select>
           )}
@@ -2898,7 +2910,6 @@ function Registrations() {
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-          {/* Table Head */}
           <div className="overflow-x-auto">
             <table className="w-full text-base">
               <thead>
@@ -3077,7 +3088,6 @@ function Registrations() {
     </div>
   );
 }
-
 /* ================================================
    ATTENDANCE SECTION (unchanged)
 ================================================ */

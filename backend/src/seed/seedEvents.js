@@ -231,18 +231,18 @@ const seedEvents = async () => {
     // Copy images to uploads/ so Express can serve them
     copyImagesToUploads();
 
-    // Find a college_admin to assign as createdBy
-    const admin = await User.findOne({ role: "college_admin", status: "approved" });
+    // Find up to 3 college_admins to assign as createdBy
+    const admins = await User.find({ role: "college_admin", status: "approved" }).limit(3);
 
-    if (!admin) {
+    if (!admins || admins.length === 0) {
       console.error(
         "❌ No approved college_admin found.\n" +
-        "   Please register and approve a college admin first, then re-run this seed."
+        "   Please register and approve at least one college admin first, then re-run this seed."
       );
       process.exit(1);
     }
 
-    console.log(`👤 Using admin: ${admin.name} (${admin.email})\n`);
+    console.log(`👤 Found ${admins.length} admin(s) to distribute events among.\n`);
 
     // ─────────────────────────────────────────────
     // STEP 1: Ensure participant fields exist
@@ -277,9 +277,18 @@ const seedEvents = async () => {
 
     const existingTitles = await Event.distinct("title");
 
-    const eventsToInsert = getEvents(admin._id)
+    const eventsToInsert = getEvents(admins[0]._id)
       .filter(e => !existingTitles.includes(e.title))
-      .map(e => ({ ...e, maxParticipants: 100, currentParticipants: 0 }));
+      .map((e, index) => {
+        // Distribute events round-robin among available admins
+        const assignedAdmin = admins[index % admins.length];
+        return { 
+          ...e, 
+          createdBy: assignedAdmin._id,
+          maxParticipants: 100, 
+          currentParticipants: 0 
+        };
+      });
 
     if (eventsToInsert.length === 0) {
       console.log("ℹ️  All seed events already exist. Nothing to insert.");

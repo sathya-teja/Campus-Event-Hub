@@ -14,14 +14,29 @@ export default function Footer() {
 
           {/* Brand */}
           <div className="md:col-span-5">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
-                <span className="text-white text-xs font-black">CE</span>
-              </div>
-              <span className="text-gray-900 font-bold text-lg tracking-tight">
-                CampusEvent<span className="text-blue-600">Hub</span>
-              </span>
-            </div>
+            <div
+  className="flex items-center gap-2 mb-4 cursor-pointer"
+  onClick={() => navigate("/")}
+>
+  <img
+    src="/fav.svg"
+    alt="logo"
+    className="w-9 h-9 object-contain"
+  />
+
+  <div className="flex flex-col leading-none">
+    <span className="text-gray-900 font-bold text-lg tracking-tight">
+      Campus{" "}
+      <span className="text-blue-600">
+        EventHub
+      </span>
+    </span>
+
+    <span className="text-[10px] text-gray-500">
+      Discover. Celebrate. Connect.
+    </span>
+  </div>
+</div>
             <p className="text-sm leading-relaxed text-gray-500 max-w-sm mb-6">
               A modern platform for discovering, managing, and participating in
               inter-college events across every campus.

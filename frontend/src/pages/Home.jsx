@@ -22,19 +22,36 @@ import {
 import { useState, useEffect, useRef } from "react";
 import { getEvents, getImageUrl, getTotalRegistrations } from "../services/api";
 
-
 /* ── Category styling ── */
 const CAT_STYLES = {
-  Tech:     { badge: "bg-blue-100 text-blue-700",     dot: "bg-blue-500",   icon: "💻" },
-  Cultural: { badge: "bg-purple-100 text-purple-700", dot: "bg-purple-500", icon: "🎭" },
-  Sports:   { badge: "bg-green-100 text-green-700",   dot: "bg-green-500",  icon: "⚽" },
-  Workshop: { badge: "bg-amber-100 text-amber-700",   dot: "bg-amber-500",  icon: "🛠️" },
-  Technical:{ badge: "bg-blue-100 text-blue-700",     dot: "bg-blue-500",   icon: "💻" },
+  Tech: { badge: "bg-blue-100 text-blue-700", dot: "bg-blue-500", icon: "💻" },
+  Cultural: {
+    badge: "bg-purple-100 text-purple-700",
+    dot: "bg-purple-500",
+    icon: "🎭",
+  },
+  Sports: {
+    badge: "bg-green-100 text-green-700",
+    dot: "bg-green-500",
+    icon: "⚽",
+  },
+  Workshop: {
+    badge: "bg-amber-100 text-amber-700",
+    dot: "bg-amber-500",
+    icon: "🛠️",
+  },
+  Technical: {
+    badge: "bg-blue-100 text-blue-700",
+    dot: "bg-blue-500",
+    icon: "💻",
+  },
 };
 
 function formatDate(date) {
   return new Date(date).toLocaleDateString("en-IN", {
-    day: "numeric", month: "short", year: "numeric",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
   });
 }
 
@@ -42,7 +59,9 @@ function formatTime(date) {
   const d = new Date(date);
   if (d.getHours() === 0 && d.getMinutes() === 0) return null;
   return d.toLocaleTimeString("en-IN", {
-    hour: "2-digit", minute: "2-digit", hour12: true,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
   });
 }
 
@@ -64,13 +83,22 @@ export default function Home() {
   const isStudent = !user || user.role === "student";
 
   const heroRef = useRef(null);
-  const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
+  const { scrollYProgress } = useScroll({
+    target: heroRef,
+    offset: ["start start", "end start"],
+  });
   const heroY = useTransform(scrollYProgress, [0, 1], ["0%", "30%"]);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
 
   const [events, setEvents] = useState([]);
   const [eventsLoading, setEventsLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, upcoming: 0, colleges: 0, categories: 0, students: 0 });
+  const [stats, setStats] = useState({
+    total: 0,
+    upcoming: 0,
+    colleges: 0,
+    categories: 0,
+    students: 0,
+  });
   const [searchQuery, setSearchQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
 
@@ -81,16 +109,20 @@ export default function Home() {
         setEventsLoading(true);
         const { data } = await getEvents();
         const { data: statsData } = await getTotalRegistrations();
-        
+
         setEvents(data);
-        const upcoming = data.filter((e) => new Date(e.startDate) > new Date()).length;
-        const colleges = [...new Set(data.map((e) => e.createdBy?.college).filter(Boolean))].length;
+        const upcoming = data.filter(
+          (e) => new Date(e.startDate) > new Date(),
+        ).length;
+        const colleges = [
+          ...new Set(data.map((e) => e.createdBy?.college).filter(Boolean)),
+        ].length;
         const categories = [...new Set(data.map((e) => e.category))].length;
-        
-        setStats({ 
-          total: data.length, 
-          upcoming, 
-          colleges, 
+
+        setStats({
+          total: data.length,
+          upcoming,
+          colleges,
           categories,
           students: statsData.totalStudents,
         });
@@ -109,7 +141,8 @@ export default function Home() {
     .filter((e) => {
       const status = getStatus(e.startDate, e.endDate);
       const isPastEvent = status === "Past";
-      const matchCat = activeCategory === "All" || e.category === activeCategory;
+      const matchCat =
+        activeCategory === "All" || e.category === activeCategory;
       const matchSearch =
         !searchQuery ||
         e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -127,19 +160,25 @@ export default function Home() {
       {/* ════════════════════════════════════════
           HERO SECTION
       ════════════════════════════════════════ */}
-      <section ref={heroRef} className="relative min-h-screen flex items-center overflow-hidden bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900">
-
+      <section
+        ref={heroRef}
+        className="relative min-h-screen flex items-center overflow-hidden bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900"
+      >
         {/* Animated mesh background */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-40 -left-40 w-[700px] h-[700px] bg-blue-600/20 rounded-full blur-[120px] animate-pulse" />
-          <div className="absolute -bottom-40 -right-40 w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: "1s" }} />
+          <div
+            className="absolute -bottom-40 -right-40 w-[600px] h-[600px] bg-indigo-600/20 rounded-full blur-[120px] animate-pulse"
+            style={{ animationDelay: "1s" }}
+          />
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] bg-blue-500/10 rounded-full blur-[80px]" />
 
           {/* Grid overlay */}
           <div
             className="absolute inset-0 opacity-[0.05]"
             style={{
-              backgroundImage: "linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px)",
+              backgroundImage:
+                "linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px)",
               backgroundSize: "60px 60px",
             }}
           />
@@ -164,7 +203,6 @@ export default function Home() {
           className="relative max-w-7xl mx-auto px-4 sm:px-6 pt-24 pb-20 w-full"
         >
           <div className="grid lg:grid-cols-2 gap-16 items-center">
-
             {/* LEFT — Copy */}
             <div>
               {/* Eyebrow badge */}
@@ -203,7 +241,8 @@ export default function Home() {
                 transition={{ duration: 0.6, delay: 0.2 }}
                 className="text-slate-400 text-lg leading-relaxed max-w-md mb-8"
               >
-                One platform to explore, manage, and participate in hackathons, cultural fests, sports meets, and workshops across every campus.
+                One platform to explore, manage, and participate in hackathons,
+                cultural fests, sports meets, and workshops across every campus.
               </motion.p>
 
               {/* Search bar */}
@@ -217,7 +256,9 @@ export default function Home() {
                 <input
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && navigate(`/events?q=${searchQuery}`)}
+                  onKeyDown={(e) =>
+                    e.key === "Enter" && navigate(`/events?q=${searchQuery}`)
+                  }
                   placeholder="Search events, colleges, topics..."
                   className="w-full pl-11 pr-32 py-3.5 bg-white/10 backdrop-blur border border-white/20 rounded-xl text-sm text-gray-900 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                 />
@@ -260,14 +301,18 @@ export default function Home() {
                 className="flex flex-wrap items-center gap-6"
               >
                 {[
-                  { value: stats.total || "50+", label: "Events" },
-                  { value: stats.colleges || "10+", label: "Colleges" },
-                  { value: stats.students || "0", label: "Students" },
-                  { value: stats.upcoming || "20+", label: "Upcoming" },
+                  { value: stats.total ?? 50, label: "Events" },
+                  { value: stats.colleges ?? 10, label: "Colleges" },
+                  { value: stats.students ?? 0, label: "Students" },
+                  { value: stats.upcoming ?? 20, label: "Upcoming" },
                 ].map((stat, i) => (
                   <div key={i} className="flex flex-col">
-                    <span className="text-2xl font-extrabold text-white">{stat.value}</span>
-                    <span className="text-xs text-slate-500 font-medium">{stat.label}</span>
+                    <span className="text-2xl font-extrabold text-white">
+                      {stat.value}+
+                    </span>
+                    <span className="text-xs text-slate-500 font-medium">
+                      {stat.label}
+                    </span>
                   </div>
                 ))}
               </motion.div>
@@ -288,7 +333,10 @@ export default function Home() {
                 {eventsLoading ? (
                   <div className="space-y-4">
                     {[...Array(3)].map((_, i) => (
-                      <div key={i} className="h-36 bg-white/5 rounded-2xl animate-pulse border border-white/10" />
+                      <div
+                        key={i}
+                        className="h-36 bg-white/5 rounded-2xl animate-pulse border border-white/10"
+                      />
                     ))}
                   </div>
                 ) : heroEvents.length > 0 ? (
@@ -326,24 +374,28 @@ export default function Home() {
       ════════════════════════════════════════ */}
       <section className="py-20 px-4 sm:px-6 bg-gray-50">
         <div className="max-w-7xl mx-auto">
-
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-10">
             <div>
               <div className="flex items-center gap-2 mb-2">
                 <span className="w-8 h-px bg-blue-600" />
-                <span className="text-blue-600 text-xs font-bold tracking-widest uppercase">Live from Backend</span>
+                <span className="text-blue-600 text-xs font-bold tracking-widest uppercase">
+                  Live from Backend
+                </span>
               </div>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight">
                 Upcoming Events
               </h2>
-              <p className="text-gray-500 text-sm mt-1.5">Real-time events from colleges near you</p>
+              <p className="text-gray-500 text-sm mt-1.5">
+                Real-time events from colleges near you
+              </p>
             </div>
             <button
               onClick={() => navigate("/events")}
               className="flex-shrink-0 flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 transition group"
             >
-              View all events <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+              View all events{" "}
+              <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </button>
           </div>
 
@@ -370,7 +422,10 @@ export default function Home() {
           {eventsLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {[...Array(6)].map((_, i) => (
-                <div key={i} className="bg-white rounded-2xl overflow-hidden border border-gray-100 animate-pulse shadow-sm">
+                <div
+                  key={i}
+                  className="bg-white rounded-2xl overflow-hidden border border-gray-100 animate-pulse shadow-sm"
+                >
                   <div className="h-48 bg-gray-100" />
                   <div className="p-5 space-y-3">
                     <div className="h-4 bg-gray-100 rounded w-3/4" />
@@ -383,16 +438,26 @@ export default function Home() {
           ) : filteredEvents.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredEvents.map((event, i) => (
-                <LiveEventCard key={event._id} event={event} index={i} isStudent={isStudent} />
+                <LiveEventCard
+                  key={event._id}
+                  event={event}
+                  index={i}
+                  isStudent={isStudent}
+                />
               ))}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="text-5xl mb-4">🗓️</div>
               <p className="text-gray-700 font-bold text-lg">No events found</p>
-              <p className="text-gray-400 text-sm mt-1 mb-5">Try a different category or check back later.</p>
+              <p className="text-gray-400 text-sm mt-1 mb-5">
+                Try a different category or check back later.
+              </p>
               <button
-                onClick={() => { setActiveCategory("All"); setSearchQuery(""); }}
+                onClick={() => {
+                  setActiveCategory("All");
+                  setSearchQuery("");
+                }}
                 className="bg-blue-600 text-white px-5 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition"
               >
                 Reset Filters
@@ -418,20 +483,38 @@ export default function Home() {
           STATS BANNER
       ════════════════════════════════════════ */}
       <section className="py-16 bg-blue-600 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10"
+        <div
+          className="absolute inset-0 opacity-10"
           style={{
-            backgroundImage: "radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 50%, white 1px, transparent 1px)",
+            backgroundImage:
+              "radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 50%, white 1px, transparent 1px)",
             backgroundSize: "60px 60px",
           }}
         />
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center text-white">
             {[
-              { value: stats.total > 0 ? `${stats.total}+` : "50+", label: "Total Events", icon: <Calendar className="w-6 h-6" /> },
-              { value: stats.colleges > 0 ? `${stats.colleges}+` : "10+", label: "Partner Colleges", icon: <Globe className="w-6 h-6" /> },
-              { value: stats.students > 0 ? `${stats.students}+` : "0", label: "Registered Students", icon: <Users className="w-6 h-6" /> },
+              {
+                value: stats.total > 0 ? `${stats.total}+` : "50+",
+                label: "Total Events",
+                icon: <Calendar className="w-6 h-6" />,
+              },
+              {
+                value: stats.colleges > 0 ? `${stats.colleges}+` : "10+",
+                label: "Partner Colleges",
+                icon: <Globe className="w-6 h-6" />,
+              },
+              {
+                value: stats.students > 0 ? `${stats.students}+` : "0",
+                label: "Registered Students",
+                icon: <Users className="w-6 h-6" />,
+              },
 
-              { value: stats.upcoming > 0 ? `${stats.upcoming}` : "20+", label: "Upcoming Events", icon: <TrendingUp className="w-6 h-6" /> },
+              {
+                value: stats.upcoming > 0 ? `${stats.upcoming}` : "20+",
+                label: "Upcoming Events",
+                icon: <TrendingUp className="w-6 h-6" />,
+              },
             ].map((stat, i) => (
               <motion.div
                 key={i}
@@ -444,8 +527,12 @@ export default function Home() {
                 <div className="w-12 h-12 rounded-2xl bg-white/15 flex items-center justify-center mb-1">
                   {stat.icon}
                 </div>
-                <span className="text-3xl sm:text-4xl font-extrabold">{stat.value}</span>
-                <span className="text-blue-200 text-sm font-medium">{stat.label}</span>
+                <span className="text-3xl sm:text-4xl font-extrabold">
+                  {stat.value}
+                </span>
+                <span className="text-blue-200 text-sm font-medium">
+                  {stat.label}
+                </span>
               </motion.div>
             ))}
           </div>
@@ -460,14 +547,17 @@ export default function Home() {
           <div className="text-center mb-16">
             <div className="flex items-center justify-center gap-2 mb-3">
               <span className="w-8 h-px bg-blue-600" />
-              <span className="text-blue-600 text-xs font-bold tracking-widest uppercase">Simple Process</span>
+              <span className="text-blue-600 text-xs font-bold tracking-widest uppercase">
+                Simple Process
+              </span>
               <span className="w-8 h-px bg-blue-600" />
             </div>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-3">
               How CampusEventHub Works
             </h2>
             <p className="text-gray-500 max-w-lg mx-auto text-sm">
-              From discovery to participation — everything you need in three simple steps.
+              From discovery to participation — everything you need in three
+              simple steps.
             </p>
           </div>
 
@@ -516,20 +606,25 @@ export default function Home() {
                   {step.step}
                 </div>
 
-                <div className={`w-14 h-14 rounded-2xl border flex items-center justify-center mb-5 mt-3 ${step.color}`}>
+                <div
+                  className={`w-14 h-14 rounded-2xl border flex items-center justify-center mb-5 mt-3 ${step.color}`}
+                >
                   {step.icon}
                 </div>
 
                 <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
                   {step.title}
                 </h3>
-                <p className="text-gray-500 text-sm leading-relaxed mb-5">{step.desc}</p>
+                <p className="text-gray-500 text-sm leading-relaxed mb-5">
+                  {step.desc}
+                </p>
 
                 <button
                   onClick={step.action}
                   className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 group/link transition-colors"
                 >
-                  {step.cta} <ArrowRight className="w-3.5 h-3.5 group-hover/link:translate-x-0.5 transition-transform" />
+                  {step.cta}{" "}
+                  <ArrowRight className="w-3.5 h-3.5 group-hover/link:translate-x-0.5 transition-transform" />
                 </button>
               </motion.div>
             ))}
@@ -545,14 +640,17 @@ export default function Home() {
           <div className="text-center mb-14">
             <div className="flex items-center justify-center gap-2 mb-3">
               <span className="w-8 h-px bg-blue-600" />
-              <span className="text-blue-600 text-xs font-bold tracking-widest uppercase">Why Choose Us</span>
+              <span className="text-blue-600 text-xs font-bold tracking-widest uppercase">
+                Why Choose Us
+              </span>
               <span className="w-8 h-px bg-blue-600" />
             </div>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight mb-3">
               Everything campus life needs
             </h2>
             <p className="text-gray-500 max-w-md mx-auto text-sm">
-              Built for students and organizers — with tools that actually make event management simple.
+              Built for students and organizers — with tools that actually make
+              event management simple.
             </p>
           </div>
 
@@ -603,13 +701,17 @@ export default function Home() {
                 transition={{ delay: i * 0.07 }}
                 className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group"
               >
-                <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 ${feature.color}`}>
+                <div
+                  className={`w-11 h-11 rounded-xl flex items-center justify-center mb-4 ${feature.color}`}
+                >
                   {feature.icon}
                 </div>
                 <h3 className="font-bold text-gray-900 mb-1.5 group-hover:text-blue-600 transition-colors">
                   {feature.title}
                 </h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{feature.desc}</p>
+                <p className="text-gray-500 text-sm leading-relaxed">
+                  {feature.desc}
+                </p>
               </motion.div>
             ))}
           </div>
@@ -624,7 +726,9 @@ export default function Home() {
           <div className="text-center mb-14">
             <div className="flex items-center justify-center gap-2 mb-3">
               <span className="w-8 h-px bg-blue-600" />
-              <span className="text-blue-600 text-xs font-bold tracking-widest uppercase">Student Voices</span>
+              <span className="text-blue-600 text-xs font-bold tracking-widest uppercase">
+                Student Voices
+              </span>
               <span className="w-8 h-px bg-blue-600" />
             </div>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 tracking-tight">
@@ -669,16 +773,25 @@ export default function Home() {
               >
                 <div className="flex gap-0.5">
                   {[...Array(t.stars)].map((_, j) => (
-                    <Star key={j} className="w-4 h-4 fill-amber-400 text-amber-400" />
+                    <Star
+                      key={j}
+                      className="w-4 h-4 fill-amber-400 text-amber-400"
+                    />
                   ))}
                 </div>
-                <p className="text-gray-700 text-sm leading-relaxed flex-1">"{t.text}"</p>
+                <p className="text-gray-700 text-sm leading-relaxed flex-1">
+                  "{t.text}"
+                </p>
                 <div className="flex items-center gap-3 pt-2 border-t border-gray-50">
-                  <div className={`w-10 h-10 rounded-full ${t.color} text-white text-sm font-bold flex items-center justify-center flex-shrink-0`}>
+                  <div
+                    className={`w-10 h-10 rounded-full ${t.color} text-white text-sm font-bold flex items-center justify-center flex-shrink-0`}
+                  >
                     {t.avatar}
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900 text-sm">{t.name}</p>
+                    <p className="font-semibold text-gray-900 text-sm">
+                      {t.name}
+                    </p>
                     <p className="text-gray-400 text-xs">{t.role}</p>
                   </div>
                 </div>
@@ -709,10 +822,12 @@ export default function Home() {
 
             <h3 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4 leading-tight tracking-tight">
               Ready to explore
-              <br />campus opportunities?
+              <br />
+              campus opportunities?
             </h3>
             <p className="text-blue-100 text-base sm:text-lg mb-8 max-w-xl mx-auto">
-              Join thousands of students on CampusEventHub — and never miss a hackathon, workshop, or cultural event again.
+              Join thousands of students on CampusEventHub — and never miss a
+              hackathon, workshop, or cultural event again.
             </p>
 
             <div className="flex flex-wrap items-center justify-center gap-3">
@@ -767,20 +882,30 @@ function HeroEventCard({ event, index }) {
       <div className="flex items-center gap-4 p-4">
         {/* Thumbnail */}
         <div className="relative w-20 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-blue-900">
-          <img src={imageUrl} alt={event.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+          <img
+            src={imageUrl}
+            alt={event.title}
+            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+          />
         </div>
 
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5">
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cat.badge}`}>
+            <span
+              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cat.badge}`}
+            >
               {cat.icon} {event.category}
             </span>
-            <span className={`text-[10px] font-semibold ${status === "Ongoing" ? "text-green-400" : "text-blue-300"}`}>
+            <span
+              className={`text-[10px] font-semibold ${status === "Ongoing" ? "text-green-400" : "text-blue-300"}`}
+            >
               ● {status}
             </span>
           </div>
-          <h4 className="text-white font-semibold text-sm truncate mb-1">{event.title}</h4>
+          <h4 className="text-white font-semibold text-sm truncate mb-1">
+            {event.title}
+          </h4>
           <div className="flex items-center gap-3 text-slate-400 text-xs">
             <span className="flex items-center gap-1">
               <Calendar className="w-3 h-3 flex-shrink-0" />
@@ -806,9 +931,30 @@ function FallbackHeroCard() {
   return (
     <div className="space-y-4">
       {[
-        { title: "Hackathon 2026", date: "Mar 12 • NBKRIST", time: "09:00 AM", cat: "Tech", color: "from-blue-900 to-blue-800", status: "Upcoming" },
-        { title: "Cultural Fest", date: "Apr 05 • SVU", time: "10:00 AM", cat: "Cultural", color: "from-purple-900 to-purple-800", status: "Upcoming" },
-        { title: "Sports Meet", date: "May 20 • JNTU", time: "08:00 AM", cat: "Sports", color: "from-green-900 to-green-800", status: "Upcoming" },
+        {
+          title: "Hackathon 2026",
+          date: "Mar 12 • NBKRIST",
+          time: "09:00 AM",
+          cat: "Tech",
+          color: "from-blue-900 to-blue-800",
+          status: "Upcoming",
+        },
+        {
+          title: "Cultural Fest",
+          date: "Apr 05 • SVU",
+          time: "10:00 AM",
+          cat: "Cultural",
+          color: "from-purple-900 to-purple-800",
+          status: "Upcoming",
+        },
+        {
+          title: "Sports Meet",
+          date: "May 20 • JNTU",
+          time: "08:00 AM",
+          cat: "Sports",
+          color: "from-green-900 to-green-800",
+          status: "Upcoming",
+        },
       ].map((item, i) => (
         <motion.div
           key={i}
@@ -816,17 +962,20 @@ function FallbackHeroCard() {
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.3 + i * 0.15 }}
           className="group relative bg-white/5 border border-white/10 rounded-2xl overflow-hidden p-4 flex items-center gap-4"
-
         >
           <div className="w-16 h-12 rounded-xl bg-white/10 flex items-center justify-center text-2xl flex-shrink-0">
             {CAT_STYLES[item.cat]?.icon}
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${CAT_STYLES[item.cat]?.badge}`}>
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${CAT_STYLES[item.cat]?.badge}`}
+              >
                 {item.cat}
               </span>
-              <span className="text-[10px] text-blue-300 font-semibold">● {item.status}</span>
+              <span className="text-[10px] text-blue-300 font-semibold">
+                ● {item.status}
+              </span>
             </div>
             <h4 className="text-white font-semibold text-sm">{item.title}</h4>
             <div className="flex items-center gap-3 text-slate-400 text-xs mt-0.5">
@@ -853,7 +1002,8 @@ function LiveEventCard({ event, index, isStudent }) {
   const timeStr = formatTime(event.startDate);
   const endTimeStr = formatTime(event.endDate);
   const isSameDay =
-    new Date(event.startDate).toDateString() === new Date(event.endDate).toDateString();
+    new Date(event.startDate).toDateString() ===
+    new Date(event.endDate).toDateString();
 
   const imageUrl = event.image
     ? getImageUrl(event.image)
@@ -861,8 +1011,8 @@ function LiveEventCard({ event, index, isStudent }) {
 
   const STATUS_STYLES = {
     Upcoming: "bg-blue-50 text-blue-700 border-blue-200",
-    Ongoing:  "bg-green-50 text-green-700 border-green-200",
-    Past:     "bg-gray-100 text-gray-500 border-gray-200",
+    Ongoing: "bg-green-50 text-green-700 border-green-200",
+    Past: "bg-gray-100 text-gray-500 border-gray-200",
   };
 
   return (
@@ -883,12 +1033,16 @@ function LiveEventCard({ event, index, isStudent }) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
 
         <div className="absolute top-3 left-3">
-          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${cat.badge}`}>
+          <span
+            className={`text-xs font-semibold px-2.5 py-1 rounded-full ${cat.badge}`}
+          >
             {cat.icon} {event.category}
           </span>
         </div>
         <div className="absolute top-3 right-3">
-          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${STATUS_STYLES[status]}`}>
+          <span
+            className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${STATUS_STYLES[status]}`}
+          >
             {status}
           </span>
         </div>
@@ -908,7 +1062,9 @@ function LiveEventCard({ event, index, isStudent }) {
         </h3>
 
         {event.description && (
-          <p className="text-gray-400 text-xs leading-relaxed mb-4 line-clamp-2">{event.description}</p>
+          <p className="text-gray-400 text-xs leading-relaxed mb-4 line-clamp-2">
+            {event.description}
+          </p>
         )}
 
         <div className="mt-auto flex flex-col gap-1.5 mb-4">
@@ -926,7 +1082,9 @@ function LiveEventCard({ event, index, isStudent }) {
               <Clock className="w-3 h-3 flex-shrink-0" />
               <span>
                 {timeStr}
-                {isSameDay && endTimeStr && endTimeStr !== timeStr ? ` – ${endTimeStr}` : ""}
+                {isSameDay && endTimeStr && endTimeStr !== timeStr
+                  ? ` – ${endTimeStr}`
+                  : ""}
               </span>
             </div>
           )}
@@ -946,14 +1104,20 @@ function LiveEventCard({ event, index, isStudent }) {
           )}
           {isStudent ? (
             <button
-              onClick={(e) => { e.stopPropagation(); navigate(`/events/${event._id}`); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/events/${event._id}`);
+              }}
               className="flex-shrink-0 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1"
             >
               Register <ArrowRight className="w-3 h-3" />
             </button>
           ) : (
             <button
-              onClick={(e) => { e.stopPropagation(); navigate(`/events/${event._id}`); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/events/${event._id}`);
+              }}
               className="flex-shrink-0 text-xs font-semibold text-gray-600 border border-gray-200 hover:border-blue-600 hover:text-blue-600 px-3.5 py-1.5 rounded-lg transition-colors flex items-center gap-1"
             >
               View Details <ArrowRight className="w-3 h-3" />
