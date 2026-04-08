@@ -4,8 +4,7 @@ import axios from "axios";
    SINGLE SOURCE OF TRUTH — change this one line to point to
    your production server and every file updates automatically.
 ───────────────────────────────────────────────────────────── */
-export const BASE_URL = "http://localhost:5000";
-
+export const BASE_URL = import.meta.env.VITE_API_BASE_URL;
 const API = axios.create({
   baseURL: `${BASE_URL}/api`,
 });
