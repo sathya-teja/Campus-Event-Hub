@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
+import { createEvent } from "../services/api";
 import Navbar from "../components/Navbar";
 import {
   FiUploadCloud,
@@ -117,12 +117,7 @@ export default function CreateEvent() {
       setLoading(true);
       setMessage(null);
 
-      await axios.post("http://localhost:5000/api/events", payload, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "multipart/form-data",
-        },
-      });
+      await createEvent(payload);
 
       setMessage({ type: "success", text: "Event created successfully!" });
 
