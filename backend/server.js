@@ -33,7 +33,7 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        imgSrc: ["'self'", "data:", "http://localhost:5000"],
+        imgSrc: ["'self'", "data:", process.env.BACKEND_URL || "http://localhost:5000"],
       },
     },
   })
