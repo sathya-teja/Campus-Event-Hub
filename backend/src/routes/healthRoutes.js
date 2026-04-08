@@ -21,4 +21,9 @@ router.post(
   runHealthCheck
 );
 
+// ✅ PUBLIC lightweight ping (for uptime robot)
+router.get("/ping", (req, res) => {
+  res.status(200).send("OK");
+});
+
 export default router;
