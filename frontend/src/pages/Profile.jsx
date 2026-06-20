@@ -57,10 +57,8 @@ export default function Profile() {
     .toUpperCase()
     .slice(0, 2);
 
-  const savedImage = user?.profileImage
-    ? user.profileImage.startsWith("http")
-      ? user.profileImage
-      : `${BASE_URL}/uploads/${user.profileImage}`
+  const savedImage = user?.profileImage && user.profileImage.startsWith("http")
+    ? user.profileImage
     : null;
   const avatarSrc = imagePreview || savedImage || null;
 

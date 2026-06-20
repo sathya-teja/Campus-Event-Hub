@@ -5,57 +5,22 @@ dotenv.config();
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import User from "../models/User.js";
-import https from "https";
-import fs from "fs";
-import path from "path";
+import { uploadUrlToCloudinary } from "../services/cloudinaryService.js";
 
-// ── Download Google avatar to local uploads/ ─────────────────────────────────
-const downloadAvatar = (url, filename) => {
-  return new Promise((resolve) => {
-    if (!url) { console.log("❌ No URL"); return resolve(""); }
-    const filepath = path.join("uploads", filename);
-    console.log("📥 Downloading:", url);
-    console.log("📁 Saving to:", filepath);
-    const file = fs.createWriteStream(filepath);
-    https.get(url, (res) => {
-      console.log("📡 Status:", res.statusCode);
-      if (res.statusCode !== 200) {
-        file.close();
-        fs.unlink(filepath, () => {});
-        return resolve("");
-      }
-      res.pipe(file);
-      file.on("finish", () => {
-        file.close();
-        const stats = fs.statSync(filepath);
-        console.log("📦 File size:", stats.size, "bytes");
-        if (stats.size < 3000) {
-          fs.unlink(filepath, () => {});
-          console.log("⚠️ Too small, skipping");
-          return resolve("");
-        }
-        console.log("✅ Saved as:", filename);
-        resolve(filename);
-      });
-    }).on("error", (err) => {
-      console.log("❌ Download error:", err.message);
-      fs.unlink(filepath, () => {});
-      resolve("");
-    });
-  });
-};
+const PROFILE_IMAGE_FOLDER = "campuseventhub/profiles";
 
 // ── Shared find-or-create logic ──────────────────────────────────────────────
 const findOrCreateUser = async ({ providerId, providerField, email, name, avatar }) => {
-  const filename = `google_${providerId}.jpg`;
-
   // 1. Already linked to this provider
   let user = await User.findOne({ [providerField]: providerId });
   if (user) {
-    // Re-download if profileImage is missing
+    // Backfill Cloudinary avatar if missing
     if (!user.profileImage && avatar) {
-      user.profileImage = await downloadAvatar(avatar, filename);
-      await user.save();
+      const uploadedUrl = await uploadUrlToCloudinary(avatar, PROFILE_IMAGE_FOLDER);
+      if (uploadedUrl) {
+        user.profileImage = uploadedUrl;
+        await user.save();
+      }
     }
     return user;
   }
@@ -65,19 +30,22 @@ const findOrCreateUser = async ({ providerId, providerField, email, name, avatar
   if (user) {
     user[providerField] = providerId;
     if (!user.profileImage && avatar) {
-      user.profileImage = await downloadAvatar(avatar, filename);
+      const uploadedUrl = await uploadUrlToCloudinary(avatar, PROFILE_IMAGE_FOLDER);
+      if (uploadedUrl) {
+        user.profileImage = uploadedUrl;
+      }
     }
     await user.save();
     return user;
   }
 
-  // 3. Brand new user → download avatar + create
-  const profileImage = await downloadAvatar(avatar, filename);
+  // 3. Brand new user → upload avatar to Cloudinary + create
+  const profileImage = await uploadUrlToCloudinary(avatar, PROFILE_IMAGE_FOLDER);
   user = await User.create({
     name,
     email,
     [providerField]: providerId,
-    profileImage, // filename if real photo, "" if letter avatar → initials shows
+    profileImage: profileImage || "", // Cloudinary URL, or "" → initials fallback shows
     role:   "student",
     status: "approved",
   });

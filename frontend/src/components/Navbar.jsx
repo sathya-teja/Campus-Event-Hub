@@ -49,12 +49,9 @@ export default function Navbar({ toggleSidebar, setSidebarOpen }) {
   setImgError(false);
 }, [user?.id]);
 
+  // Cloudinary always returns a full, absolute URL — use it as-is.
   const avatarSrc =
-  user?.profileImage && !imgError
-    ? user.profileImage.startsWith("http")
-      ? user.profileImage
-      : `${BASE_URL}/uploads/${user.profileImage}`
-    : null;
+    user?.profileImage && !imgError ? user.profileImage : null;
 
   const getDashboardPath = () => {
     switch (role) {

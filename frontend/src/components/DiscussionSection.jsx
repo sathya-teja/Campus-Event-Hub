@@ -128,11 +128,7 @@ function timeAgo(dateStr) {
 function Avatar({ user, size = "w-8 h-8", textSize = "text-sm" }) {
   const [imgErr, setImgErr] = useState(false);
   const src =
-    user?.profileImage && !imgErr
-      ? user.profileImage.startsWith("http")
-        ? user.profileImage
-        : `${BASE_URL}/uploads/${user.profileImage}`
-      : null;
+    user?.profileImage && !imgErr ? user.profileImage : null;
 
   const initials = user?.name
     ? user.name.split(" ").map((w) => w[0]).join("").toUpperCase().slice(0, 2)

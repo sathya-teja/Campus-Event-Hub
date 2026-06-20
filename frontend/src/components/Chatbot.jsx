@@ -200,11 +200,7 @@ function UserAvatar({ user }) {
   const [imgErr, setImgErr] = useState(false);
 
   const src =
-    user?.profileImage && !imgErr
-      ? user.profileImage.startsWith("http")
-        ? user.profileImage
-        : `${BASE_URL}/uploads/${user.profileImage}`
-      : null;
+    user?.profileImage && !imgErr ? user.profileImage : null;
 
   return (
     <div className="w-6 h-6 rounded-lg overflow-hidden flex-shrink-0 mb-1 border border-white shadow-sm">

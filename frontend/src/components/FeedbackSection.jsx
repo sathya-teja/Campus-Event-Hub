@@ -1,4 +1,4 @@
-// FeedbackSection.jsx — Fixed image resolution
+// FeedbackSection.jsx — Cloudinary-only image resolution
 
 import { useState, useEffect, useCallback } from "react";
 import {
@@ -29,17 +29,11 @@ import {
   BASE_URL,
 } from "../services/api";
 
-// Custom image resolver that matches backend storage pattern
+// Cloudinary always returns a complete, absolute secure URL.
+// There is no local path to resolve anymore — just pass it through.
 function resolveImage(rawPath) {
-  if (!rawPath) return null;
-  if (rawPath.startsWith("http")) return rawPath;
-  // Remove leading slash: "/uploads/foo.jpg" → "uploads/foo.jpg"
-  const p = rawPath.startsWith("/") ? rawPath.slice(1) : rawPath;
-  if (p.startsWith("uploads/")) {
-    return `${BASE_URL}/${p}`;
-  }
-  // Filename only (profile images saved without folder prefix)
-  return `${BASE_URL}/uploads/${p}`;
+  if (!rawPath || typeof rawPath !== "string") return null;
+  return rawPath.startsWith("http") ? rawPath : null;
 }
 
 /* ─────────────────────────────────────────────────

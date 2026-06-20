@@ -113,9 +113,15 @@ export const getEventAttendance     = (eventId) =>
 export const sendChatMessage = (message)   => API.post("/chat", { message });
 
 /* ================= IMAGE HELPER ================= */
-// Use this wherever you build an image src from a server path.
-// e.g.  getImageUrl(event.image)  →  "http://localhost:5000/uploads/abc.jpg"
-export const getImageUrl = (path) => (path ? `${BASE_URL}/${path}` : null);
+// Cloudinary always returns a full, absolute secure URL
+// (e.g. "https://res.cloudinary.com/<cloud>/image/upload/..."),
+// so there is no local path to resolve anymore. We simply pass
+// the stored URL straight through. Anything that isn't a valid
+// absolute URL means no image was ever set.
+export const getImageUrl = (url) => {
+  if (!url || typeof url !== "string") return null;
+  return url.startsWith("http") ? url : null;
+};
 
 
 // ✅ NEW: OAuth helper — redirects browser to backend Google OAuth flow

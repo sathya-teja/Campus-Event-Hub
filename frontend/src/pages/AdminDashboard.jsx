@@ -2246,10 +2246,11 @@ function EmptyState({ hasFilters, onClear, onCreate }) {
 
 
 // ── Shared avatar URL helper (mirrors Navbar.jsx) ──
+// ── Shared avatar URL helper (Cloudinary URLs only) ──
 function getAvatarSrc(userObj) {
   const img = userObj?.profileImage;
-  if (!img) return null;
-  return img.startsWith("http") ? img : `${BASE_URL}/uploads/${img}`;
+  if (!img || typeof img !== "string") return null;
+  return img.startsWith("http") ? img : null;
 }
 function UserManagement() {
   const [users, setUsers] = useState([]);
@@ -3902,8 +3903,8 @@ function AdminLogs() {
   ───────────────────────────────────────── */
   const getAvatarSrc = (adminObj) => {
     const img = adminObj?.profileImage;
-    if (!img) return null;
-    return img.startsWith("http") ? img : `${BASE_URL}/uploads/${img}`;
+    if (!img || typeof img !== "string") return null;
+    return img.startsWith("http") ? img : null;
   };
 
   /* ── Fetch logs ── */

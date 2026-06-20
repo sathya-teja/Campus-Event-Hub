@@ -1,16 +1,9 @@
 import multer from "multer";
 import path from "path";
 
-// Storage configuration
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/");
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = Date.now() + "_" + file.originalname;
-    cb(null, uniqueName);
-  },
-});
+// In-memory storage — file lives only in req.file.buffer.
+// Nothing is ever written to the local filesystem.
+const storage = multer.memoryStorage();
 
 // File filter (only images)
 const fileFilter = (req, file, cb) => {

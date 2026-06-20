@@ -3,6 +3,9 @@ import User from "../models/User.js";
 import { sendEmail, emailTemplates } from "../services/emailService.js";           // 🔔 NEW
 import { createAndSendNotification } from "./notificationController.js";           // 🔔 NEW
 import { logAdminAction } from "../services/loggerService.js";
+import { uploadBufferToCloudinary, deleteFromCloudinary } from "../services/cloudinaryService.js";
+
+const PROFILE_IMAGE_FOLDER = "campuseventhub/profiles";
 
 /*
 ========================================
@@ -22,9 +25,16 @@ export const updateProfile = async (req, res) => {
     if (req.body.college !== undefined) user.college = req.body.college;
     if (req.body.phone !== undefined) user.phone = req.body.phone;
 
-    // If new profile image uploaded
+    // If new profile image uploaded — push to Cloudinary, store secure_url
     if (req.file) {
-      user.profileImage = req.file.filename;
+      const oldImage = user.profileImage;
+      const newImageUrl = await uploadBufferToCloudinary(req.file.buffer, PROFILE_IMAGE_FOLDER);
+      user.profileImage = newImageUrl;
+
+      // Clean up old Cloudinary image (best-effort, non-blocking)
+      if (oldImage) {
+        deleteFromCloudinary(oldImage).catch(() => {});
+      }
     }
 
     await user.save();
@@ -87,6 +97,12 @@ export const changePassword = async (req, res) => {
 */
 export const deleteAccount = async (req, res) => {
   try {
+    const user = await User.findById(req.user._id);
+
+    if (user?.profileImage) {
+      deleteFromCloudinary(user.profileImage).catch(() => {});
+    }
+
     await User.findByIdAndDelete(req.user._id);
 
     res.status(200).json({

@@ -878,8 +878,8 @@ function ManageAdmins() {
 
   const getAvatarSrc = (userObj) => {
     const img = userObj?.profileImage;
-    if (!img) return null;
-    return img.startsWith("http") ? img : `${BASE_URL}/uploads/${img}`;
+    if (!img || typeof img !== "string") return null;
+    return img.startsWith("http") ? img : null;
   };
   const getInitials = (name) =>
     name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?";
@@ -1154,8 +1154,8 @@ function AllUsers() {
 
   const getAvatarSrc = (userObj) => {
     const img = userObj?.profileImage;
-    if (!img) return null;
-    return img.startsWith("http") ? img : `${BASE_URL}/uploads/${img}`;
+    if (!img || typeof img !== "string") return null;
+    return img.startsWith("http") ? img : null;
   };
   const getInitials = (name) => name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?";
   const avatarColors = ["bg-blue-500","bg-violet-500","bg-rose-500","bg-amber-500","bg-teal-500","bg-indigo-500"];
@@ -1745,8 +1745,8 @@ function SystemLogs() {
 
   const getAvatarSrc = (adminObj) => {
     const img = adminObj?.profileImage;
-    if (!img) return null;
-    return img.startsWith("http") ? img : `${BASE_URL}/uploads/${img}`;
+    if (!img || typeof img !== "string") return null;
+    return img.startsWith("http") ? img : null;
   };
 
   useEffect(() => {

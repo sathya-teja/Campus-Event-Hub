@@ -1,6 +1,8 @@
 import Event from "../models/Event.js";
 import { logAdminAction } from "../services/loggerService.js";
+import { uploadBufferToCloudinary, deleteFromCloudinary } from "../services/cloudinaryService.js";
 
+const EVENT_IMAGE_FOLDER = "campuseventhub/events";
 
 /* ===============================
    CREATE EVENT
@@ -53,6 +55,11 @@ export const createEvent = async (req, res) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
+    let imageUrl = null;
+    if (req.file) {
+      imageUrl = await uploadBufferToCloudinary(req.file.buffer, EVENT_IMAGE_FOLDER);
+    }
+
     const event = await Event.create({
       title: titleClean,
       category: categoryClean,
@@ -61,19 +68,17 @@ export const createEvent = async (req, res) => {
       location: locationClean,
       description: descriptionClean,
       maxParticipants: Number(maxParticipants),
-      image: req.file
-        ? req.file.path.replace(/\\/g, "/")
-        : null,
+      image: imageUrl,
       createdBy: req.user._id,
     });
 
     logAdminAction(
-  req.user,
-  "EVENT_CREATED",
-  event._id,
-  "Event",
-  { title: event.title }
-);
+      req.user,
+      "EVENT_CREATED",
+      event._id,
+      "Event",
+      { title: event.title }
+    );
 
     res.status(201).json({
       message: "Event created successfully",
@@ -173,6 +178,11 @@ export const updateEvent = async (req, res) => {
       });
     }
 
+    let newImageUrl = null;
+    if (req.file) {
+      newImageUrl = await uploadBufferToCloudinary(req.file.buffer, EVENT_IMAGE_FOLDER);
+    }
+
     const updatedEvent = await Event.findByIdAndUpdate(
       req.params.id,
       {
@@ -185,20 +195,23 @@ export const updateEvent = async (req, res) => {
         ...(maxParticipants && !isNaN(maxParticipants) && Number(maxParticipants) >= 1 && {
           maxParticipants: Number(maxParticipants),
         }),
-        ...(req.file && {
-          image: req.file.path.replace(/\\/g, "/"),
-        }),
+        ...(newImageUrl && { image: newImageUrl }),
       },
       { new: true }
     );
 
+    // Clean up the old image from Cloudinary now that it's replaced
+    if (newImageUrl && event.image) {
+      deleteFromCloudinary(event.image).catch(() => {});
+    }
+
     logAdminAction(
-  req.user,
-  "EVENT_UPDATED",
-  event._id,
-  "Event",
-  { title: event.title }
-);
+      req.user,
+      "EVENT_UPDATED",
+      event._id,
+      "Event",
+      { title: event.title }
+    );
 
     res.status(200).json(updatedEvent);
   } catch (error) {
@@ -230,13 +243,18 @@ export const deleteEvent = async (req, res) => {
 
     await event.deleteOne();
 
+    // Best-effort cleanup of the Cloudinary asset
+    if (event.image) {
+      deleteFromCloudinary(event.image).catch(() => {});
+    }
+
     logAdminAction(
-  req.user,
-  "EVENT_DELETED",
-  event._id,
-  "Event",
-  { title: event.title }
-);
+      req.user,
+      "EVENT_DELETED",
+      event._id,
+      "Event",
+      { title: event.title }
+    );
 
     res.status(200).json({
       message: "Event deleted successfully",
