@@ -140,6 +140,8 @@ export const loginUser = async (req, res) => {
     name: user.name,
     email: user.email,
     role: user.role,
+    college: user.college,
+    phone: user.phone,
     profileImage: user.profileImage,  // ✅ ADD THIS LINE
   },
 });

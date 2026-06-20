@@ -38,6 +38,8 @@ const buildRedirectURL = (user, token) => {
     email:        user.email,
     role:         user.role,
     profileImage: user.profileImage || "",
+    college: user.college || "",
+  phone: user.phone || "",
   });
   return `${process.env.FRONTEND_URL}/auth/callback?${params.toString()}`;
 };

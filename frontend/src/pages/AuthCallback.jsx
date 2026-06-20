@@ -30,6 +30,8 @@ export default function AuthCallback() {
     const email        = params.get("email");
     const role         = params.get("role");
     const profileImage = params.get("profileImage") || "";
+    const college = params.get("college") || "";
+const phone = params.get("phone") || "";
 
     // ── Validate required params ──────────────────────────────────────────────
     if (!token || !id) {
@@ -39,7 +41,15 @@ export default function AuthCallback() {
     }
 
     // ── Call existing login() — same as Login.jsx ─────────────────────────────
-    login(token, { id, name, email, role, profileImage });
+    login(token, {
+  id,
+  name,
+  email,
+  role,
+  profileImage,
+  college,
+  phone,
+});
     toast.success(`Welcome, ${name}! 🎉`);
     navigate("/");
 
