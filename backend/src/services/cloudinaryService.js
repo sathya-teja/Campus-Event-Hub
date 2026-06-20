@@ -73,7 +73,7 @@ export const deleteFromCloudinary = async (secureUrl) => {
 
   try {
     // Extract public_id: everything after /upload/v123456/ and before the extension
-    const match = secureUrl.match(/\/upload\/(?:v\d+\/)?(.+)\.[a-zA-Z0-9]+$/);
+    const match = secureUrl.match(/\/upload\/(?:[^/]+\/)*(?:v\d+\/)?(.+)\.[a-zA-Z0-9]+$/);
     if (!match || !match[1]) return;
     const publicId = match[1];
     await cloudinary.uploader.destroy(publicId, { resource_type: "image" });

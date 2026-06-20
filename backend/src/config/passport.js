@@ -45,7 +45,7 @@ const findOrCreateUser = async ({ providerId, providerField, email, name, avatar
     name,
     email,
     [providerField]: providerId,
-    profileImage: profileImage || "", // Cloudinary URL, or "" → initials fallback shows
+    profileImage: profileImage || avatar || "", // Cloudinary URL, raw Google URL, or "" → initials fallback shows
     role:   "student",
     status: "approved",
   });

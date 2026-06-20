@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { FiArrowRight } from "react-icons/fi";
 import { Calendar, Clock, MapPin } from "lucide-react";
+import { getImageUrl } from "../services/api";
 
 const categoryColors = {
   Technical:        { bg: "bg-sky-50",     text: "text-sky-700",     dot: "bg-sky-500" },
@@ -59,7 +60,7 @@ export default function EventCard({ event, index = 0, registration, onCancel }) 
       {/* Image */}
       <div className="relative overflow-hidden h-48 flex-shrink-0">
         <img
-          src={event.image}
+          src={getImageUrl(event.image) || `https://placehold.co/600x400/e8edf7/2563eb?text=${encodeURIComponent(event.title)}`}
           alt={event.title}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
         />
