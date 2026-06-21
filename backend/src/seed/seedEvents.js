@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 import path from "path";
-import fs from "fs";
+import { uploadFileToCloudinary } from "../services/cloudinaryService.js";
 import { fileURLToPath } from "url";
 import connectDB from "../config/db.js";
 import Event from "../models/Event.js";
@@ -11,213 +11,333 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ─── Image paths (sitting next to this script in /seed/) ─────────────────────
-const img = (filename) => {
-  const absPath = path.join(__dirname, filename);
-  if (!fs.existsSync(absPath)) {
-    console.warn(`⚠️  Image not found, skipping: ${filename}`);
-    return null;
-  }
-  // Store as a relative path from project root so Express can serve it
-  return `uploads/${filename}`;
+/*
+========================================
+📅 EVENTS SEED
+----------------------------------------
+20 events total (15 original + 5 new), exactly 5 per approved admin:
+
+  NBKR (sathyateja116@gmail.com)  → 1 Past, 1 Ongoing, 3 Upcoming
+  VIT  (sathyateja118@gmail.com)  → 1 Past, 1 Ongoing, 3 Upcoming
+  JNTU (james.jntu@gmail.com)     → 2 Past, 1 Ongoing, 2 Upcoming
+  SVU  (emily.svu@gmail.com)      → 2 Past, 1 Ongoing, 2 Upcoming
+
+  Totals: 6 Past · 4 Ongoing · 10 Upcoming = 20 events
+
+----------------------------------------
+📌 LONG-TERM DATE STRATEGY (read before editing)
+----------------------------------------
+This is a portfolio project that may stay deployed for 3–4 years without
+being re-seeded. Hardcoding fixed calendar dates would make every event
+"Past" within months. Instead, every date below is computed RELATIVE TO
+THE MOMENT THIS SCRIPT RUNS, using daysFromNow(offsetDays, hour, minute).
+
+  - Past events    → offsets of -7, -15, -30, -60, -90, -120 days
+  - Ongoing events → started 30 days ago, end ~4 years from now
+                      (startDate = now-30d, endDate = now+1460d), modelling
+                      long-running campus programs (incubation cells,
+                      open-source clubs, sports leagues, research groups)
+                      that are realistically "always ongoing".
+  - Upcoming events → 4 "near future" (+7,+15,+30,+90 days) and
+                      6 "long-term future" (+365,+700,+1000,+1400,+1800,+2200
+                      days), so the platform keeps showing fresh upcoming
+                      events for several years without re-seeding.
+
+This guarantees correct Upcoming/Ongoing/Past classification (see
+getEventStatus() in AdminDashboard.jsx / getStatus() in EventDetail.jsx)
+at any point during the multi-year deployment window, AS OF the day this
+script is executed. If you want the demo to look fresh again in year 5+,
+simply re-run this seed (it is idempotent — see "already exists" check).
+========================================
+*/
+
+const NOW = new Date();
+
+/** Returns a Date offset by `offsetDays` from the moment the seed runs, at the given hour:minute. */
+const daysFromNow = (offsetDays, hour = 9, minute = 0) => {
+  const date = new Date(NOW);
+  date.setDate(date.getDate() + offsetDays);
+  date.setHours(hour, minute, 0, 0);
+  return date;
 };
 
-// ─── Copy seed images into the uploads folder Express serves ─────────────────
-const copyImagesToUploads = () => {
-  // Resolve the uploads/ folder at project root  (2 levels up from src/seed)
-  const uploadsDir = path.resolve(__dirname, "../../uploads");
+const EVENT_IMAGE_FOLDER = "campuseventhub/events";
 
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-    console.log("📁 Created uploads/ directory");
-  }
+const uploadSeedImage = async (filename) => {
+  const imagePath = path.join(__dirname, filename);
 
-  const imageFiles = [
-    "tech1.jpg", "tech2.jpg", "tech3.jpg", "tech4.jpg",
-    "cultural1.jpg", "cultural2.jpg", "cultural3.jpg", "cultural4.jpg",
-    "sports1.jpg", "sports2.jpg", "sports3.jpg", "sports4.jpg",
-    "workshop1.jpg", "workshop2.jpg", "workshop3.jpg",
-  ];
-
-  imageFiles.forEach((file) => {
-    const src  = path.join(__dirname, file);
-    const dest = path.join(uploadsDir, file);
-    if (fs.existsSync(src) && !fs.existsSync(dest)) {
-      fs.copyFileSync(src, dest);
-      console.log(`  ✅ Copied ${file} → uploads/`);
-    }
-  });
+  return await uploadFileToCloudinary(
+    imagePath,
+    EVENT_IMAGE_FOLDER
+  );
 };
 
-// ─── Date/time helpers ────────────────────────────────────────────────────────
-const getEvents = (adminId) => {
-  const now = new Date();
-
-  // Build a Date offset by days from now, with a specific hour:minute
-  const d = (daysOffset, hour, minute = 0) => {
-    const date = new Date(now);
-    date.setDate(date.getDate() + daysOffset);
-    date.setHours(hour, minute, 0, 0);
-    return date;
-  };
+/*
+========================================
+EVENT DEFINITIONS
+Grouped by admin. Each event is tagged with its intended lifecycle
+status in a comment — this is what interactionsSeed.js relies on to
+decide registrations/attendance/feedback/discussions per event.
+========================================
+*/
+const buildEvents = (adminMap) => {
+  const { nbkr, vit, jntu, svu } = adminMap;
 
   return [
-    // ── TECH (Upcoming ×2, Ongoing ×1, Past ×1) ───────────────────────────────
+    /* ════════════════════════════════════════════════════════════
+       NBKR — 1 Past, 1 Ongoing, 3 Upcoming
+    ════════════════════════════════════════════════════════════ */
     {
+      // PAST (-7 days)
       title:       "Inter-College Hackathon 2026",
       category:    "Tech",
-      startDate:   d(8,  9,  0),   // 8 days from now  09:00
-      endDate:     d(10, 18, 0),   // 10 days from now 18:00
+      startDate:   daysFromNow(-9, 9, 0),
+      endDate:     daysFromNow(-7, 18, 0),
       location:    "Main Auditorium, Block A",
-      description: "A 48-hour coding marathon where teams of 2–4 students compete to build innovative solutions. Prizes worth ₹1,00,000 to be won. Open to all engineering branches.",
-      image:       img("tech1.jpg"),
-      createdBy:   adminId,
+      description: "A 48-hour coding marathon where teams of 2–4 students competed to build innovative solutions. Prizes worth ₹1,00,000 were awarded. Open to all engineering branches.",
+      image:       "tech1.jpg",
+      maxParticipants: 120,
+      createdBy:   nbkr._id,
     },
     {
-      title:       "AI & Machine Learning Summit",
-      category:    "Tech",
-      startDate:   d(22, 10, 30),  // 22 days from now 10:30
-      endDate:     d(22, 17, 0),   // same day         17:00
-      location:    "Seminar Hall, IT Block",
-      description: "Industry experts and researchers come together to discuss the latest breakthroughs in AI, deep learning, and generative models. Includes live demos and Q&A.",
-      image:       img("tech2.jpg"),
-      createdBy:   adminId,
-    },
-    {
-      title:       "Code Sprint — DSA Challenge",
-      category:    "Tech",
-      startDate:   d(-1, 8,  0),   // started yesterday 08:00
-      endDate:     d(1,  20, 0),   // ends tomorrow    20:00  → Ongoing
-      location:    "Computer Lab 3, Block C",
-      description: "A timed Data Structures & Algorithms contest on competitive programming platforms. Individual participation. Certificates for all finishers, cash prizes for top 3.",
-      image:       img("tech3.jpg"),
-      createdBy:   adminId,
-    },
-    {
-      title:       "Open Source Contribution Drive",
-      category:    "Tech",
-      startDate:   d(-9, 9,  0),   // 9 days ago  09:00
-      endDate:     d(-7, 17, 30),  // 7 days ago  17:30  → Past
-      location:    "Innovation Lab, Ground Floor",
-      description: "Students collaborated on real-world open source projects hosted on GitHub. Mentors from leading tech companies guided participants through pull requests and code reviews.",
-      image:       img("tech4.jpg"),
-      createdBy:   adminId,
-    },
-
-    // ── CULTURAL (Upcoming ×2, Ongoing ×1, Past ×1) ───────────────────────────
-    {
-      title:       "Harmony Fest 2026",
-      category:    "Cultural",
-      startDate:   d(14, 11, 0),   // 14 days from now 11:00
-      endDate:     d(16, 22, 0),   // 16 days from now 22:00
-      location:    "Open Air Amphitheatre",
-      description: "The biggest cultural extravaganza of the year! Dance, music, drama, and art competitions across 3 days. Inter-college participation welcome. Grand finale with celebrity performance.",
-      image:       img("cultural1.jpg"),
-      createdBy:   adminId,
-    },
-    {
-      title:       "Battle of Bands",
-      category:    "Cultural",
-      startDate:   d(32, 16, 0),   // 32 days from now 16:00
-      endDate:     d(32, 22, 30),  // same day         22:30
-      location:    "College Grounds, Main Stage",
-      description: "Rock, pop, fusion — all genres welcome. College bands go head-to-head in front of a live audience and a panel of professional judges. Register your 4–6 member band now.",
-      image:       img("cultural2.jpg"),
-      createdBy:   adminId,
-    },
-    {
+      // ONGOING — street play fest running across campus over several days
       title:       "Nukkad Natak — Street Play Fest",
       category:    "Cultural",
-      startDate:   d(-2, 10, 0),   // started 2 days ago 10:00
-      endDate:     d(1,  19, 0),   // ends tomorrow      19:00  → Ongoing
+      startDate:   daysFromNow(-30, 10, 0),
+      endDate:     daysFromNow(1460, 19, 0),
       location:    "College Courtyard & Campus Streets",
       description: "Teams of 8–12 perform hard-hitting social awareness street plays across different campus locations. Theme: 'Change Begins Here'. Judged on script, delivery, and audience impact.",
-      image:       img("cultural3.jpg"),
-      createdBy:   adminId,
+      image:       "cultural3.jpg",
+      maxParticipants: 150,
+      createdBy:   nbkr._id,
     },
     {
-      title:       "Classical Dance Competition",
-      category:    "Cultural",
-      startDate:   d(-13, 9, 30),  // 13 days ago 09:30
-      endDate:     d(-12, 18, 0),  // 12 days ago 18:00  → Past
-      location:    "Performing Arts Centre",
-      description: "A showcase of Bharatanatyam, Kathak, Odissi, and Kuchipudi. Solo and group categories. Judged by nationally recognised Gurus. Recordings will be featured on the college YouTube channel.",
-      image:       img("cultural4.jpg"),
-      createdBy:   adminId,
+      // UPCOMING — near future (+7)
+      title:       "AI & Machine Learning Summit",
+      category:    "Tech",
+      startDate:   daysFromNow(7, 10, 30),
+      endDate:     daysFromNow(7, 17, 0),
+      location:    "Seminar Hall, IT Block",
+      description: "Industry experts and researchers come together to discuss the latest breakthroughs in AI, deep learning, and generative models. Includes live demos and Q&A.",
+      image:       "tech2.jpg",
+      maxParticipants: 150,
+      createdBy:   nbkr._id,
+    },
+    {
+      // UPCOMING — near future (+30)
+      title:       "Code Sprint — DSA Challenge",
+      category:    "Tech",
+      startDate:   daysFromNow(30, 8, 0),
+      endDate:     daysFromNow(31, 20, 0),
+      location:    "Computer Lab 3, Block C",
+      description: "A timed Data Structures & Algorithms contest on competitive programming platforms. Individual participation. Certificates for all finishers, cash prizes for top 3.",
+      image:       "tech3.jpg",
+      maxParticipants: 100,
+      createdBy:   nbkr._id,
+    },
+    {
+      // UPCOMING — long-term future (+700) [NEW EVENT]
+      title:       "Future Tech Conclave 2027",
+      category:    "Tech",
+      startDate:   daysFromNow(700, 9, 0),
+      endDate:     daysFromNow(702, 17, 0),
+      location:    "Main Auditorium, Block A",
+      description: "A multi-day flagship conclave exploring emerging technologies — quantum computing, robotics, and next-gen software architecture — featuring keynote speakers from across the industry.",
+      image: "tech5.jpg",
+      maxParticipants: 250,
+      createdBy:   nbkr._id,
     },
 
-    // ── SPORTS (Upcoming ×2, Ongoing ×1, Past ×1) ─────────────────────────────
+    /* ════════════════════════════════════════════════════════════
+       VIT — 1 Past, 1 Ongoing, 3 Upcoming
+    ════════════════════════════════════════════════════════════ */
     {
-      title:       "Basketball Championship 2026",
-      category:    "Sports",
-      startDate:   d(5,  8, 30),   // 5 days from now  08:30
-      endDate:     d(7,  18, 0),   // 7 days from now  18:00
-      location:    "Indoor Sports Complex, Court 1",
-      description: "Inter-college basketball tournament with 16 teams competing in knockout format. Men's and Women's divisions. Live scoring and streaming available on the college sports portal.",
-      image:       img("sports1.jpg"),
-      createdBy:   adminId,
+      // PAST (-15 days)
+      title:       "Harmony Fest 2026",
+      category:    "Cultural",
+      startDate:   daysFromNow(-17, 11, 0),
+      endDate:     daysFromNow(-15, 22, 0),
+      location:    "Open Air Amphitheatre",
+      description: "The biggest cultural extravaganza of the year! Dance, music, drama, and art competitions across 3 days, with inter-college participation and a grand finale performance.",
+      image:       "cultural1.jpg",
+      maxParticipants: 500,
+      createdBy:   vit._id,
     },
     {
-      title:       "Annual Athletics Meet",
-      category:    "Sports",
-      startDate:   d(27, 7,  0),   // 27 days from now 07:00
-      endDate:     d(29, 17, 0),   // 29 days from now 17:00
-      location:    "College Stadium & Running Track",
-      description: "Track and field events including 100m, 400m, relay, long jump, shot put, and javelin throw. Open to all currently enrolled students. Medals and trophies for top 3 in each event.",
-      image:       img("sports2.jpg"),
-      createdBy:   adminId,
-    },
-    {
+      // ONGOING — long-running league spanning the academic year
       title:       "Football Super League",
       category:    "Sports",
-      startDate:   d(-3, 15, 0),   // started 3 days ago 15:00
-      endDate:     d(5,  18, 0),   // ends 5 days from now 18:00  → Ongoing
+      startDate:   daysFromNow(-30, 15, 0),
+      endDate:     daysFromNow(1460, 18, 0),
       location:    "Football Ground, East Campus",
-      description: "7-a-side football league running across 2 weeks. 12 college teams registered. Round-robin group stage followed by semis and final. Live commentary and refreshments at the venue.",
-      image:       img("sports3.jpg"),
-      createdBy:   adminId,
+      description: "7-a-side football league running across the academic year. 12 college teams registered. Round-robin group stage followed by semis and final. Live commentary and refreshments at the venue.",
+      image:       "sports3.jpg",
+      maxParticipants: 200,
+      createdBy:   vit._id,
     },
     {
-      title:       "Yoga & Wellness Day",
+      // UPCOMING — near future (+15)
+      title:       "Battle of Bands",
+      category:    "Cultural",
+      startDate:   daysFromNow(15, 16, 0),
+      endDate:     daysFromNow(15, 22, 30),
+      location:    "College Grounds, Main Stage",
+      description: "Rock, pop, fusion — all genres welcome. College bands go head-to-head in front of a live audience and a panel of professional judges. Register your 4–6 member band now.",
+      image:       "cultural2.jpg",
+      maxParticipants: 80,
+      createdBy:   vit._id,
+    },
+    {
+      // UPCOMING — near future (+90)
+      title:       "Basketball Championship 2026",
       category:    "Sports",
-      startDate:   d(-5, 6,  0),   // 5 days ago 06:00
-      endDate:     d(-5, 18, 0),   // 5 days ago 18:00  → Past
-      location:    "Garden Lawn, Block D",
-      description: "A full-day event celebrating physical and mental wellness. Morning yoga session led by certified instructors, followed by meditation, nutrition talks, and fun fitness challenges.",
-      image:       img("sports4.jpg"),
-      createdBy:   adminId,
+      startDate:   daysFromNow(90, 8, 30),
+      endDate:     daysFromNow(92, 18, 0),
+      location:    "Indoor Sports Complex, Court 1",
+      description: "Inter-college basketball tournament with 16 teams competing in knockout format. Men's and Women's divisions. Live scoring and streaming available on the college sports portal.",
+      image:       "sports1.jpg",
+      maxParticipants: 160,
+      createdBy:   vit._id,
+    },
+    {
+      // UPCOMING — long-term future (+1400) [NEW EVENT]
+      title:       "Global Cultural Exchange Fest 2030",
+      category:    "Cultural",
+      startDate:   daysFromNow(1400, 11, 0),
+      endDate:     daysFromNow(1402, 21, 0),
+      location:    "Open Air Amphitheatre",
+      description: "A long-horizon flagship cultural exchange event bringing together performers and delegates from partner institutions for a multi-day celebration of art, music, and tradition.",
+      image: "cultural5.jpg",
+      maxParticipants: 400,
+      createdBy:   vit._id,
     },
 
-    // ── WORKSHOP (Upcoming ×2, Past ×1) ───────────────────────────────────────
+    /* ════════════════════════════════════════════════════════════
+       JNTU — 2 Past, 1 Ongoing, 2 Upcoming
+    ════════════════════════════════════════════════════════════ */
     {
+      // PAST (-30 days)
+      title:       "Classical Dance Competition",
+      category:    "Cultural",
+      startDate:   daysFromNow(-31, 9, 30),
+      endDate:     daysFromNow(-30, 18, 0),
+      location:    "Performing Arts Centre",
+      description: "A showcase of Bharatanatyam, Kathak, Odissi, and Kuchipudi. Solo and group categories. Judged by nationally recognised Gurus. Recordings will be featured on the college YouTube channel.",
+      image:       "cultural4.jpg",
+      maxParticipants: 90,
+      createdBy:   jntu._id,
+    },
+    {
+      // PAST (-60 days)
+      title:       "Yoga & Wellness Day",
+      category:    "Sports",
+      startDate:   daysFromNow(-60, 6, 0),
+      endDate:     daysFromNow(-60, 18, 0),
+      location:    "Garden Lawn, Block D",
+      description: "A full-day event celebrating physical and mental wellness. Morning yoga session led by certified instructors, followed by meditation, nutrition talks, and fun fitness challenges.",
+      image:       "sports4.jpg",
+      maxParticipants: 70,
+      createdBy:   jntu._id,
+    },
+    {
+      // ONGOING — cross-departmental research program [NEW EVENT]
+      title:       "Research Collaboration Initiative",
+      category:    "Tech",
+      startDate:   daysFromNow(-30, 9, 0),
+      endDate:     daysFromNow(1460, 18, 0),
+      location:    "Research Block, 2nd Floor",
+      description: "An ongoing cross-departmental research initiative connecting students with faculty-led research groups in AI, materials science, and renewable energy. Open enrolment year-round.",
+      image: "tech7.jpg",
+      maxParticipants: 150,
+      createdBy:   jntu._id,
+    },
+    {
+      // UPCOMING — near future (+45)
       title:       "Full-Stack Web Development Bootcamp",
       category:    "Workshop",
-      startDate:   d(11, 9,  0),   // 11 days from now 09:00
-      endDate:     d(13, 17, 30),  // 13 days from now 17:30
+      startDate:   daysFromNow(45, 9, 0),
+      endDate:     daysFromNow(47, 17, 30),
       location:    "Computer Lab 1, Block B",
       description: "Hands-on 3-day bootcamp covering React, Node.js, Express, and MongoDB. Build and deploy a full-stack project by the end. Laptops required. Limited to 40 participants — register early!",
-      image:       img("workshop1.jpg"),
-      createdBy:   adminId,
+      image:       "workshop1.jpg",
+      maxParticipants: 40,
+      createdBy:   jntu._id,
     },
     {
-      title:       "UI/UX Design Masterclass",
-      category:    "Workshop",
-      startDate:   d(19, 10, 0),   // 19 days from now 10:00
-      endDate:     d(20, 16, 30),  // 20 days from now 16:30
-      location:    "Design Studio, Media Block",
-      description: "Learn user research, wireframing, prototyping in Figma, and usability testing from industry designers. Portfolio-worthy project included. Certificate of completion provided.",
-      image:       img("workshop2.jpg"),
-      createdBy:   adminId,
+      // UPCOMING — long-term future (+1000) [NEW EVENT]
+      title:       "National Robotics Challenge 2029",
+      category:    "Tech",
+      startDate:   daysFromNow(1000, 9, 0),
+      endDate:     daysFromNow(1002, 18, 0),
+      location:    "Main Auditorium, Block A",
+      description: "A long-horizon national-level robotics competition inviting teams to design, build, and program autonomous robots for a series of engineering challenges.",
+      image: "tech6.jpg",
+      maxParticipants: 180,
+      createdBy:   jntu._id,
     },
+
+    /* ════════════════════════════════════════════════════════════
+       SVU — 2 Past, 1 Ongoing, 2 Upcoming
+    ════════════════════════════════════════════════════════════ */
     {
+      // PAST (-90 days)
       title:       "Entrepreneurship & Startup Workshop",
       category:    "Workshop",
-      startDate:   d(-8, 9,  30),  // 8 days ago 09:30
-      endDate:     d(-7, 17, 0),   // 7 days ago 17:00  → Past
+      startDate:   daysFromNow(-91, 9, 30),
+      endDate:     daysFromNow(-90, 17, 0),
       location:    "Incubation Centre, Admin Block",
       description: "Startup founders and VCs shared insights on ideation, MVP building, pitching, and funding. Participants presented their startup ideas and received live feedback from a panel of investors.",
-      image:       img("workshop3.jpg"),
-      createdBy:   adminId,
+      image:       "workshop3.jpg",
+      maxParticipants: 60,
+      createdBy:   svu._id,
+    },
+    {
+      // PAST (-120 days)
+      title:       "Open Source Contribution Drive",
+      category:    "Tech",
+      startDate:   daysFromNow(-122, 9, 0),
+      endDate:     daysFromNow(-120, 17, 30),
+      location:    "Innovation Lab, Ground Floor",
+      description: "Students collaborated on real-world open source projects hosted on GitHub. Mentors from leading tech companies guided participants through pull requests and code reviews.",
+      image:       "tech4.jpg",
+      maxParticipants: 80,
+      createdBy:   svu._id,
+    },
+    {
+      // ONGOING — recurring design masterclass running across the year
+      title:       "UI/UX Design Masterclass",
+      category:    "Workshop",
+      startDate:   daysFromNow(-30, 10, 0),
+      endDate:     daysFromNow(1460, 16, 30),
+      location:    "Design Studio, Media Block",
+      description: "Learn user research, wireframing, prototyping in Figma, and usability testing from industry designers. Portfolio-worthy projects included. Certificate of completion provided. New cohorts enrolled on a rolling basis.",
+      image:       "workshop2.jpg",
+      maxParticipants: 60,
+      createdBy:   svu._id,
+    },
+    {
+      // UPCOMING — near future (+110)
+      title:       "Annual Athletics Meet",
+      category:    "Sports",
+      startDate:   daysFromNow(110, 7, 0),
+      endDate:     daysFromNow(112, 17, 0),
+      location:    "College Stadium & Running Track",
+      description: "Track and field events including 100m, 400m, relay, long jump, shot put, and javelin throw. Open to all currently enrolled students. Medals and trophies for top 3 in each event.",
+      image:       "sports2.jpg",
+      maxParticipants: 250,
+      createdBy:   svu._id,
+    },
+    {
+      // UPCOMING — long-term future (+1800) [NEW EVENT]
+      title:       "Decade of Innovation Summit 2031",
+      category:    "Tech",
+      startDate:   daysFromNow(1800, 10, 0),
+      endDate:     daysFromNow(1801, 17, 0),
+      location:    "Seminar Hall, IT Block",
+      description: "A long-horizon retrospective and forward-looking summit celebrating a decade of student innovation, featuring alumni speakers and showcases of breakthrough campus projects.",
+      image: "tech8.jpg",
+      maxParticipants: 200,
+      createdBy:   svu._id,
     },
   ];
 };
@@ -228,87 +348,87 @@ const seedEvents = async () => {
     await connectDB();
     console.log("\n🌱 Starting Event Seed...\n");
 
-    // Copy images to uploads/ so Express can serve them
-    copyImagesToUploads();
+  
 
-    // Find up to 3 college_admins to assign as createdBy
-    const admins = await User.find({ role: "college_admin", status: "approved" }).limit(3);
+    // Resolve the 4 required approved admins by email — these MUST exist
+    // (run collegeAdminsSeed.js first).
+    const adminEmails = {
+      nbkr: "sathyateja116@gmail.com",
+      vit:  "sathyateja118@gmail.com",
+      jntu: "james.jntu@gmail.com",
+      svu:  "emily.svu@gmail.com",
+    };
 
-    if (!admins || admins.length === 0) {
-      console.error(
-        "❌ No approved college_admin found.\n" +
-        "   Please register and approve at least one college admin first, then re-run this seed."
-      );
-      process.exit(1);
-    }
+    const adminDocs = await User.find({
+      email: { $in: Object.values(adminEmails) },
+      role: "college_admin",
+      status: "approved",
+    });
 
-    console.log(`👤 Found ${admins.length} admin(s) to distribute events among.\n`);
-
-    // ─────────────────────────────────────────────
-    // STEP 1: Ensure participant fields exist
-    // ─────────────────────────────────────────────
-
-    console.log("🔧 Checking existing events for missing participant fields...");
-
-    const updated = await Event.updateMany(
-      {
-        $or: [
-          { maxParticipants: { $exists: false } },
-          { currentParticipants: { $exists: false } }
-        ]
-      },
-      {
-        $set: {
-          maxParticipants: 100,
-          currentParticipants: 0
-        }
+    const adminMap = {};
+    for (const [key, email] of Object.entries(adminEmails)) {
+      const doc = adminDocs.find((a) => a.email === email);
+      if (!doc) {
+        console.error(
+          `❌ Required approved admin not found: ${email}\n` +
+          "   Please run 'node src/seed/collegeAdminsSeed.js' first."
+        );
+        process.exit(1);
       }
-    );
-
-    if (updated.modifiedCount > 0) {
-      console.log(`✅ Updated ${updated.modifiedCount} existing event(s)`);
-    } else {
-      console.log("✔ All existing events already have participant fields");
+      adminMap[key] = doc;
     }
 
-    // ─────────────────────────────────────────────
-    // STEP 2: Only insert events that don't exist yet (checked by title)
-    // ─────────────────────────────────────────────
+    console.log("👤 Resolved all 4 approved admins:");
+    Object.entries(adminMap).forEach(([key, doc]) =>
+      console.log(`   ${key.toUpperCase()} → ${doc.email} (${doc.college})`)
+    );
+    console.log("");
 
+    const events = buildEvents(adminMap);
+
+    // currentParticipants will be set to match approved registrations by
+    // interactionsSeed.js. At creation time it starts at 0 for every event.
     const existingTitles = await Event.distinct("title");
+    const eventsToInsert = [];
 
-    const eventsToInsert = getEvents(admins[0]._id)
-      .filter(e => !existingTitles.includes(e.title))
-      .map((e, index) => {
-        // Distribute events round-robin among available admins
-        const assignedAdmin = admins[index % admins.length];
-        return { 
-          ...e, 
-          createdBy: assignedAdmin._id,
-          maxParticipants: 100, 
-          currentParticipants: 0 
-        };
-      });
+for (const event of events) {
+  // Skip existing events
+  if (existingTitles.includes(event.title)) continue;
+
+  // Upload image to Cloudinary
+  const imageUrl = await uploadSeedImage(event.image);
+
+  eventsToInsert.push({
+    ...event,
+    image: imageUrl,
+    currentParticipants: 0,
+  });
+}
 
     if (eventsToInsert.length === 0) {
       console.log("ℹ️  All seed events already exist. Nothing to insert.");
     } else {
       console.log(`📦 Inserting ${eventsToInsert.length} missing event(s)...\n`);
       const created = await Event.insertMany(eventsToInsert);
-      console.log(`\n✅ Successfully seeded ${created.length} events:\n`);
+      console.log(`✅ Successfully seeded ${created.length} events:\n`);
       created.forEach((e, i) => {
-        console.log(`  ${i + 1}. [${e.category.padEnd(8)}] ${e.title}`);
+        console.log(`  ${String(i + 1).padStart(2, "0")}. [${e.category.padEnd(8)}] ${e.title}`);
       });
     }
 
-    console.log("\n🎉 Seed check complete!\n");
-    process.exit(0);
+    // ── Sanity check: confirm exactly 5 events per admin ────────────────
+    console.log("\n📊 Verifying per-admin event distribution...");
+    for (const [key, doc] of Object.entries(adminMap)) {
+      const count = await Event.countDocuments({ createdBy: doc._id });
+      console.log(`   ${key.toUpperCase()} (${doc.email}): ${count} events`);
+    }
 
+    console.log("\n🎉 Event seeding complete!\n");
+    process.exit(0);
   } catch (error) {
     console.error("❌ Seed failed:", error.message);
     process.exit(1);
   }
 };
-
 
 seedEvents();

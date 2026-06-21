@@ -60,6 +60,32 @@ export const uploadUrlToCloudinary = async (url, folder) => {
   }
 };
 
+
+/**
+ * Upload a local image file to Cloudinary.
+ * Used by seed scripts for bundled assets.
+ *
+ * @param {string} filePath
+ * @param {string} folder
+ * @returns {Promise<string|null>}
+ */
+export const uploadFileToCloudinary = async (filePath, folder) => {
+  if (!filePath) return null;
+
+  try {
+    const result = await cloudinary.uploader.upload(filePath, {
+      folder,
+      resource_type: "image",
+      transformation: [{ width: 1600, height: 1600, crop: "limit" }],
+    });
+
+    return result.secure_url;
+  } catch (error) {
+    console.error("❌ Cloudinary file upload failed:", error.message);
+    return null;
+  }
+};
+
 /**
  * Delete an image from Cloudinary given its secure URL.
  * Extracts the public_id from the URL. Safe to call with
