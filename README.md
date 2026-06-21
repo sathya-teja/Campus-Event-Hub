@@ -2,6 +2,14 @@
 
 Campus Event Hub is a full-stack web platform for discovering, organizing, and managing inter-college events. It gives students one place to browse events, register, receive tickets, and collect certificates, while giving college admins tools to create events, approve registrations, track attendance, and review feedback.
 
+##  Live Demo
+
+🌐 Frontend: https://campus-event-hub-nu.vercel.app/
+
+📡 Backend API: https://campus-event-hub-backend-fywy.onrender.com/
+
+> **Note:** The backend is hosted on Render's free tier and may take up to a minute to wake up after periods of inactivity.
+
 ## Demo Video
 
 Watch the project demo here:
@@ -93,7 +101,7 @@ Admins can:
 - MongoDB + Mongoose
 - JWT authentication
 - Passport Google OAuth
-- Multer for uploads
+- Multer + Cloudinary for image management
 - Nodemailer
 - PDFKit / ExcelJS / QRCode
 
@@ -112,7 +120,6 @@ Campus Event Hub/
 |   |   |-- routes/
 |   |   |-- seed/
 |   |   `-- services/
-|   |-- uploads/
 |   |-- package.json
 |   `-- server.js
 |-- frontend/
@@ -179,33 +186,70 @@ npm install
 
 ## Environment Variables
 
-Create `backend/.env` with the following values:
+Example environment variable templates are provided in:
+
+- `backend/.env.example`
+- `frontend/.env.example`
+
+Copy the example files and rename them to `.env` before running the application.
+
+### Backend Environment Variables
+
+`backend/.env.example`
 
 ```env
 PORT=5000
+
+# Database
 MONGO_URI=your_mongodb_connection_string
+
+# JWT Authentication
 JWT_SECRET=your_jwt_secret
-FRONTEND_URL=http://localhost:5173
-BACKEND_URL=http://localhost:5000
 
-EMAIL_USER=your_email_address
-EMAIL_PASS=your_email_app_password
-
-GOOGLE_CLIENT_ID=your_google_client_id
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-
-GROQ_API_KEY=your_groq_api_key
-
+# Super Admin Account
 SUPER_ADMIN_NAME=Super Admin
 SUPER_ADMIN_EMAIL=superadmin@example.com
 SUPER_ADMIN_PASSWORD=Password@123
+
+# AI Services (optional)
+GEMINI_API_KEY=your_gemini_api_key
+GROQ_API_KEY=your_groq_api_key
+
+# Email Configuration
+EMAIL_USER=your_email@example.com
+EMAIL_PASS=your_email_app_password
+
+# QR/Ticket Security
+QR_SECRET=your_qr_secret
+
+# Google OAuth
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+
+# Frontend and Backend URLs
+FRONTEND_URL=http://localhost:5173
+BACKEND_URL=http://localhost:5000
+
+# Cloudinary Configuration
+CLOUDINARY_CLOUD_NAME=your_cloudinary_cloud_name
+CLOUDINARY_API_KEY=your_cloudinary_api_key
+CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+```
+
+### Frontend Environment Variables
+
+`frontend/.env.example`
+
+```env
+VITE_BACKEND_URL=http://localhost:5000
 ```
 
 Notes:
+
 - `EMAIL_USER` and `EMAIL_PASS` are needed for approval, rejection, and password reset emails.
 - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are needed only if you want Google login.
-- `GROQ_API_KEY` is needed for the chatbot endpoint.
-- Uploaded files are stored locally in `backend/uploads/`.
+- `GEMINI_API_KEY` or `GROQ_API_KEY` is needed for the chatbot endpoint.
+- Event and profile images are stored and managed using Cloudinary.
 
 ## Running the App
 
@@ -258,21 +302,6 @@ node src/seed/seedEvents.js
 node src/seed/interactionsSeed.js
 ```
 
-## Demo Accounts
-
-If you use the included seed files, these sample accounts are available:
-
-### College Admins
-- `john@gmail.com` / `Password@123`
-- `emily@gmail.com` / `Password@123`
-
-### Students
-- `alice@gmail.com` / `Password@123`
-- `bob@gmail.com` / `Password@123`
-- Additional sample students are defined in `backend/src/seed/studentsSeed.js`
-
-The super admin account is created from the `SUPER_ADMIN_*` environment variables.
-
 ## Important API Areas
 
 Main backend route groups:
@@ -310,11 +339,10 @@ The application already includes:
 - Attendance and ticketing
 - Feedback, discussion, and notifications
 - Admin logs and health monitoring
-- Documentation for a possible Java backend rebuild in `docs/java-backend-rebuild-spec.md`
+
 
 ## Known Notes
 
-- The frontend currently calls the backend at `http://localhost:5000`.
 - Frontend API configuration is centralized in `frontend/src/services/api.js`.
 - Environment files, uploads, and `node_modules` are already ignored by Git.
 - There is currently no automated test suite configured in the root project.
